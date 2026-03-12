@@ -40,6 +40,7 @@ kis-trading-cli catalog <subcommand>
 이 CLI는 일부 파라미터를 help에서 숨기고 config 또는 환경변수에서 자동으로 채웁니다.
 
 로컬 config의 민감값은 암호문으로 저장할 수 있고, 환경변수는 평문 override로 그대로 사용합니다.
+config에 평문 민감값이 남아 있으면 API/auth 호출 전에 차단되며, `config key status`와 오류 JSON이 복구 명령을 함께 제공합니다.
 
 자동 주입되는 대표 필드:
 
@@ -108,6 +109,8 @@ config 관련 보조 명령:
 - `rotate`는 새 active key를 만들고 이전 key는 keyring의 previous key로 유지합니다.
 - `import`는 현재 config의 암호문을 실제로 복호화할 수 있는 key만 허용합니다.
 - 회전 전 backup key는 회전 전 config snapshot과 짝이 맞습니다.
+- `status`는 `plaintext_field_count`, `plaintext_fields`, `seal_required`, `suggested_commands`를 함께 출력합니다.
+- `seal_required=true`면 다음 API 호출 전에 `kis-trading-cli config seal`을 먼저 실행합니다.
 
 ## 권장 탐색 절차
 
@@ -115,10 +118,12 @@ LLM이 처음 이 CLI를 사용할 때 권장 순서는 아래와 같습니다.
 
 1. `kis-trading-cli catalog summary --compact`
 2. 필요한 카테고리 찾기
-3. `kis-trading-cli <category> --help`
-4. 대상 API 선택
-5. `kis-trading-cli <category> <api> --help`
-6. 필수 플래그를 채워 실행
+3. `kis-trading-cli config key status --compact`
+4. `seal_required=true`면 `kis-trading-cli config seal`
+5. `kis-trading-cli <category> --help`
+6. 대상 API 선택
+7. `kis-trading-cli <category> <api> --help`
+8. 필수 플래그를 채워 실행
 
 ## 작업별 명령 매핑
 
@@ -132,6 +137,7 @@ LLM이 처음 이 CLI를 사용할 때 권장 순서는 아래와 같습니다.
 - key 백업: `kis-trading-cli config key backup`
 - key 회전: `kis-trading-cli config key rotate`
 - key 복원/이관: `kis-trading-cli config key import`
+- 평문 민감값 차단 오류 복구: `config key status` 확인 후 `config seal`
 
 ### 카탈로그 탐색
 

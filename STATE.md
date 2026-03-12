@@ -49,6 +49,10 @@
   - `api_error` for KIS HTTP / `rt_cd != "0"` failures
   - `program_error` for CLI/config/network/local runtime failures
   - JSON envelope with `llm_hint`, `causes`, and stable exit codes
+- Added plaintext secret enforcement for config-backed secrets:
+  - API/auth calls now reject plaintext `app_key`, `app_secret`, `account_no`, `hts_id`
+  - `config key status` exposes `plaintext_field_count`, `plaintext_fields`, `seal_required`, and `suggested_commands`
+  - `program_error.category=plaintext_secret_detected` includes self-heal commands for LLMs
 - Verified `config init` writes a template to the OS-specific config directory outside the repository.
 - Loaded user-provided credentials into the external config file only, not into the repository.
 - Rotated the local default config key into keyring format and verified the migrated config remains usable.
@@ -76,6 +80,7 @@
   - config stores encrypted values for `app_key`, `app_secret`, `account_no`, `hts_id`
   - `account_product_code`, URLs, and `user_agent` stay plaintext in config
   - environment variables override config without decryption
+  - plaintext sensitive config values block API/auth execution until they are sealed
   - key rotation upgrades local key handling to keyring format while keeping previous keys available for decryption
 - Error strategy:
   - stderr uses structured JSON for runtime failures
@@ -97,7 +102,7 @@
 
 - `cargo fmt -- --check`: passed
 - `cargo check`: passed
-- `cargo test`: passed (`12` tests)
+- `cargo test`: passed (`15` tests)
 - `cargo run -- --help`: passed
 - `cargo run -- domestic-stock --help`: passed
 - `cargo run -- domestic-stock inquire-balance --help`: passed
@@ -109,9 +114,11 @@
 - `.github/workflows/prebuilt.yml`: YAML syntax validated locally
 - `./target/release/kis-trading-cli config key rotate --compact`: passed against the local default config
 - `./target/release/kis-trading-cli config key status --compact`: keyring format confirmed
-- `cargo test`: passed after adding key lifecycle and error classification tests (`12` tests)
+- `cargo test`: passed after adding key lifecycle, error classification, and plaintext enforcement tests (`15` tests)
 - `./target/release/kis-trading-cli config set-secret --field app-key`: structured `program_error` confirmed
 - `./target/release/kis-trading-cli domestic-stock inquire-balance ... --afhr-flpr-yn BAD`: structured `api_error` confirmed
+- `./target/release/kis-trading-cli --config <temp> config key status --compact`: plaintext fields and `seal_required` confirmed
+- `./target/release/kis-trading-cli --config <temp> auth token --compact`: structured `program_error` with `plaintext_secret_detected` and remediation commands confirmed
 
 ## Risks / Blockers
 

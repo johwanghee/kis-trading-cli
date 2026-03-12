@@ -66,6 +66,7 @@ config 비밀값 암호화에 쓰는 로컬 키 파일도 함께 사용됩니다
 
 - 비밀값은 `config set-secret`으로 넣어 config 파일에 암호문으로 저장
 - 이미 config에 평문이 있다면 `config seal`로 일괄 암호화
+- 평문 민감값이 남아 있으면 API/auth 실행은 `program_error`로 차단
 - 환경변수는 자동화/CI 용도로 평문 override 유지
 - 키 파일 운영은 `config key ...` 명령으로 처리
 
@@ -114,6 +115,15 @@ kis-trading-cli config key rotate
 kis-trading-cli config key import --input /path/to/config.key.backup
 ```
 
+`config key status --compact`는 아래 정보를 같이 보여줍니다.
+
+- `plaintext_field_count`
+- `plaintext_fields`
+- `seal_required`
+- `suggested_commands`
+
+즉 LLM은 `seal_required=true`면 `kis-trading-cli config seal`을 먼저 실행하면 됩니다.
+
 권장 순서:
 
 1. `config key status`로 현재 key 상태 확인
@@ -137,6 +147,7 @@ kis-trading-cli config key import --input /path/to/config.key.backup
 - `KIS_DEMO_ACCOUNT_NO`
 
 환경변수는 복호화 없이 그대로 사용되며, 같은 값이 config에도 있으면 환경변수가 우선합니다.
+반대로 config에 평문 민감값이 남아 있으면 실행 전에 감지되어 차단됩니다.
 
 ### 4. 대표 명령 실행
 

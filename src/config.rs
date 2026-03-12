@@ -102,6 +102,10 @@ pub struct KeyStatusResult {
     pub key_format: Option<&'static str>,
     pub previous_key_count: usize,
     pub encrypted_field_count: usize,
+    pub plaintext_field_count: usize,
+    pub plaintext_fields: Vec<String>,
+    pub seal_required: bool,
+    pub suggested_commands: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +129,12 @@ pub struct KeyRotateResult {
     pub backup_path: PathBuf,
     pub rotated_fields: usize,
     pub previous_key_count: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct PlaintextSecretError {
+    pub config_path: PathBuf,
+    pub plaintext_fields: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -177,6 +187,10 @@ impl SecretField {
             Self::AccountNo => "account_no",
             Self::HtsId => "hts_id",
         }
+    }
+
+    pub fn dotted_path(self, environment: Environment) -> String {
+        format!("profiles.{}.{}", environment.as_str(), self.config_key())
     }
 
     pub fn from_cli_name(name: &str) -> Option<Self> {
@@ -314,6 +328,17 @@ pub fn key_status(config_override: Option<&Path>) -> Result<KeyStatusResult> {
     let paths = app_paths(config_override)?;
     let config = load_config_or_default(&paths.config_path)?;
     let encrypted_field_count = count_encrypted_secret_fields(&config);
+    let plaintext_fields = collect_plaintext_secret_fields(&config);
+    let plaintext_field_count = plaintext_fields.len();
+    let seal_required = plaintext_field_count > 0;
+    let suggested_commands = if seal_required {
+        vec![
+            "kis-trading-cli config key status --compact".to_string(),
+            "kis-trading-cli config seal".to_string(),
+        ]
+    } else {
+        Vec::new()
+    };
 
     if !paths.key_path.exists() {
         return Ok(KeyStatusResult {
@@ -322,6 +347,10 @@ pub fn key_status(config_override: Option<&Path>) -> Result<KeyStatusResult> {
             key_format: None,
             previous_key_count: 0,
             encrypted_field_count,
+            plaintext_field_count,
+            plaintext_fields,
+            seal_required,
+            suggested_commands,
         });
     }
 
@@ -332,6 +361,10 @@ pub fn key_status(config_override: Option<&Path>) -> Result<KeyStatusResult> {
         key_format: Some(key_material.format),
         previous_key_count: key_material.previous.len(),
         encrypted_field_count,
+        plaintext_field_count,
+        plaintext_fields,
+        seal_required,
+        suggested_commands,
     })
 }
 
@@ -425,6 +458,7 @@ pub fn load_profile(
 ) -> Result<ResolvedProfile> {
     let paths = app_paths(config_override)?;
     let config = load_config_or_default(&paths.config_path)?;
+    ensure_no_plaintext_secret_fields(&config, &paths.config_path)?;
     let profile = config.profile_for(environment);
     let env_prefix = environment.as_str().to_ascii_uppercase();
 
@@ -494,6 +528,19 @@ pub fn load_profile(
         user_agent,
     })
 }
+
+impl std::fmt::Display for PlaintextSecretError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "plaintext sensitive config values detected in {}: {}",
+            self.config_path.display(),
+            self.plaintext_fields.join(", ")
+        )
+    }
+}
+
+impl std::error::Error for PlaintextSecretError {}
 
 fn load_config_or_default(path: &Path) -> Result<AppConfig> {
     if path.exists() {
@@ -803,6 +850,51 @@ fn count_encrypted_secret_fields(config: &AppConfig) -> usize {
         .sum()
 }
 
+fn collect_plaintext_secret_fields(config: &AppConfig) -> Vec<String> {
+    let mut fields = Vec::new();
+
+    for (environment, profile) in [
+        (Environment::Real, config.profiles.real.as_ref()),
+        (Environment::Demo, config.profiles.demo.as_ref()),
+    ] {
+        let Some(profile) = profile else {
+            continue;
+        };
+
+        for field in SecretField::ALL {
+            let slot = match field {
+                SecretField::AppKey => profile.app_key.as_ref(),
+                SecretField::AppSecret => profile.app_secret.as_ref(),
+                SecretField::AccountNo => profile.account_no.as_ref(),
+                SecretField::HtsId => profile.hts_id.as_ref(),
+            };
+
+            let Some(value) = slot else {
+                continue;
+            };
+
+            if !value.trim().is_empty() && !is_encrypted(value) {
+                fields.push(field.dotted_path(environment));
+            }
+        }
+    }
+
+    fields
+}
+
+fn ensure_no_plaintext_secret_fields(config: &AppConfig, config_path: &Path) -> Result<()> {
+    let plaintext_fields = collect_plaintext_secret_fields(config);
+    if plaintext_fields.is_empty() {
+        return Ok(());
+    }
+
+    Err(PlaintextSecretError {
+        config_path: config_path.to_path_buf(),
+        plaintext_fields,
+    }
+    .into())
+}
+
 fn count_encrypted_fields_in_profile(profile: &KisProfile) -> usize {
     [
         profile.app_key.as_ref(),
@@ -980,6 +1072,7 @@ fn template_config() -> String {
             "#   1. Fill non-secret values here.\n",
             "#   2. Store secrets with `kis-trading-cli config set-secret`.\n",
             "#   3. If this file already contains plaintext secrets, run `kis-trading-cli config seal`.\n",
+            "#   4. API/auth commands refuse plaintext sensitive values until they are sealed.\n",
             "#\n",
             "# Environment variable overrides remain supported and are used as plaintext.\n",
             "# Examples:\n",
@@ -1182,5 +1275,62 @@ mod tests {
         let _ = fs::remove_file(&paths.config_path);
         let _ = fs::remove_file(&paths.key_path);
         let _ = fs::remove_file(&backup_path);
+    }
+
+    #[test]
+    fn key_status_reports_plaintext_sensitive_fields() {
+        let config_path = temp_config_path("plaintext-status");
+        write_config_template(&config_path, false).expect("template should be written");
+
+        let mut config = read_config(&config_path).expect("config should parse");
+        let profile = config.profile_for_mut(Environment::Demo);
+        profile.app_key = Some("demo-key".to_string());
+        profile.account_no = Some("12345678".to_string());
+        write_config(&config_path, &config).expect("plaintext config should be written");
+
+        let status = key_status(Some(&config_path)).expect("status should work");
+        assert_eq!(status.plaintext_field_count, 2);
+        assert!(status.seal_required);
+        assert!(status
+            .plaintext_fields
+            .contains(&"profiles.demo.app_key".to_string()));
+        assert!(status
+            .plaintext_fields
+            .contains(&"profiles.demo.account_no".to_string()));
+        assert!(status
+            .suggested_commands
+            .contains(&"kis-trading-cli config seal".to_string()));
+
+        let paths = test_paths(&config_path);
+        let _ = fs::remove_file(&paths.config_path);
+        let _ = fs::remove_file(&paths.key_path);
+    }
+
+    #[test]
+    fn load_profile_rejects_plaintext_sensitive_fields() {
+        let config_path = temp_config_path("plaintext-reject");
+        write_config_template(&config_path, false).expect("template should be written");
+
+        let mut config = read_config(&config_path).expect("config should parse");
+        let profile = config.profile_for_mut(Environment::Real);
+        profile.app_key = Some("real-key".to_string());
+        profile.app_secret = Some("real-secret".to_string());
+        write_config(&config_path, &config).expect("plaintext config should be written");
+
+        let error = load_profile(Some(&config_path), Environment::Real)
+            .expect_err("plaintext secrets should be rejected");
+        let plaintext = error
+            .downcast_ref::<PlaintextSecretError>()
+            .expect("should be plaintext secret error");
+        assert!(plaintext
+            .plaintext_fields
+            .contains(&"profiles.real.app_key".to_string()));
+        assert!(plaintext
+            .plaintext_fields
+            .contains(&"profiles.real.app_secret".to_string()));
+
+        let paths = test_paths(&config_path);
+        let _ = fs::remove_file(&paths.config_path);
+        let _ = fs::remove_file(&paths.key_path);
     }
 }
