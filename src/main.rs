@@ -4,6 +4,7 @@ mod config;
 mod manifest;
 
 use std::path::Path;
+use std::{io, io::Read};
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Arg, ArgAction, ArgMatches, Command};
@@ -133,7 +134,49 @@ fn config_command() -> Command {
                     .help("Overwrite an existing config file"),
             ),
         )
-        .subcommand(Command::new("path").about("Show config and cache paths"))
+        .subcommand(Command::new("path").about("Show config, cache, and key paths"))
+        .subcommand(
+            Command::new("set-secret")
+                .about("Encrypt and store a secret in config")
+                .arg(
+                    Arg::new("profile")
+                        .long("profile")
+                        .required(true)
+                        .value_parser(["real", "demo"])
+                        .help("Config profile to update"),
+                )
+                .arg(
+                    Arg::new("field")
+                        .long("field")
+                        .required(true)
+                        .value_parser(["app-key", "app-secret", "account-no", "hts-id"])
+                        .help("Secret field to store"),
+                )
+                .arg(
+                    Arg::new("value")
+                        .long("value")
+                        .value_name("VALUE")
+                        .conflicts_with("stdin")
+                        .help("Secret value to store"),
+                )
+                .arg(
+                    Arg::new("stdin")
+                        .long("stdin")
+                        .action(ArgAction::SetTrue)
+                        .conflicts_with("value")
+                        .help("Read the secret value from stdin"),
+                ),
+        )
+        .subcommand(
+            Command::new("seal")
+                .about("Encrypt plaintext secret fields already present in config")
+                .arg(
+                    Arg::new("profile")
+                        .long("profile")
+                        .value_parser(["real", "demo"])
+                        .help("Limit encryption to one config profile"),
+                ),
+        )
 }
 
 fn catalog_command() -> Command {
@@ -248,6 +291,8 @@ fn handle_config(matches: &ArgMatches, config_override: Option<&str>, compact: b
                 &serde_json::json!({
                     "config_path": paths.config_path,
                     "cache_path": paths.cache_path,
+                    "key_path": paths.key_path,
+                    "key_exists": paths.key_path.exists(),
                 }),
                 compact,
             )
@@ -258,12 +303,107 @@ fn handle_config(matches: &ArgMatches, config_override: Option<&str>, compact: b
                 &serde_json::json!({
                     "config_path": paths.config_path,
                     "cache_path": paths.cache_path,
+                    "key_path": paths.key_path,
+                    "key_exists": paths.key_path.exists(),
+                }),
+                compact,
+            )
+        }
+        Some(("set-secret", set_matches)) => {
+            let environment = config_environment_arg(set_matches, "profile")?;
+            let field = secret_field_arg(set_matches, "field")?;
+            let value = secret_input(set_matches)?;
+            let result =
+                config::set_secret(config_override.map(Path::new), environment, field, &value)?;
+
+            print_json(
+                &serde_json::json!({
+                    "profile": result.profile.as_str(),
+                    "field": result.field.config_key(),
+                    "stored": "encrypted",
+                    "config_path": result.config_path,
+                    "key_path": result.key_path,
+                }),
+                compact,
+            )
+        }
+        Some(("seal", seal_matches)) => {
+            let environment = optional_config_environment_arg(seal_matches, "profile")?;
+            let result = config::seal_config(config_override.map(Path::new), environment)?;
+
+            print_json(
+                &serde_json::json!({
+                    "encrypted_fields": result.encrypted_fields,
+                    "profiles_touched": result.profiles_touched,
+                    "config_path": result.config_path,
+                    "key_path": result.key_path,
                 }),
                 compact,
             )
         }
         _ => bail!("unsupported config subcommand"),
     }
+}
+
+fn config_environment_arg(matches: &ArgMatches, name: &str) -> Result<Environment> {
+    let value = matches
+        .get_one::<String>(name)
+        .ok_or_else(|| anyhow!("missing `{name}` argument"))?;
+    parse_environment(value)
+}
+
+fn optional_config_environment_arg(
+    matches: &ArgMatches,
+    name: &str,
+) -> Result<Option<Environment>> {
+    matches
+        .get_one::<String>(name)
+        .map(|value| parse_environment(value))
+        .transpose()
+}
+
+fn parse_environment(value: &str) -> Result<Environment> {
+    match value {
+        "real" => Ok(Environment::Real),
+        "demo" => Ok(Environment::Demo),
+        _ => bail!("unsupported environment `{value}`"),
+    }
+}
+
+fn secret_field_arg(matches: &ArgMatches, name: &str) -> Result<config::SecretField> {
+    let value = matches
+        .get_one::<String>(name)
+        .ok_or_else(|| anyhow!("missing `{name}` argument"))?;
+    config::SecretField::from_cli_name(value)
+        .ok_or_else(|| anyhow!("unsupported secret field `{value}`"))
+}
+
+fn secret_input(matches: &ArgMatches) -> Result<String> {
+    if let Some(value) = matches.get_one::<String>("value") {
+        if value.trim().is_empty() {
+            bail!("secret value cannot be empty");
+        }
+        return Ok(value.clone());
+    }
+
+    if matches.get_flag("stdin") {
+        let mut input = String::new();
+        io::stdin()
+            .read_to_string(&mut input)
+            .context("failed to read secret value from stdin")?;
+
+        while matches!(input.chars().last(), Some('\n' | '\r')) {
+            input.pop();
+        }
+
+        if input.trim().is_empty() {
+            bail!("secret value cannot be empty");
+        }
+
+        return Ok(input);
+    }
+
+    bail!("provide `--value` or `--stdin`")
 }
 
 fn handle_catalog(manifest: &ApiManifest, matches: &ArgMatches, compact: bool) -> Result<()> {
