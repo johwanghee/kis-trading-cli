@@ -58,6 +58,7 @@
 - GitHub Actions 기반 3개 OS prebuilt binary 빌드와 release asset 업로드
 - config 비밀값 암복호화 저장과 plaintext-to-encrypted migration command
 - key backup/import/rotation command
+- API 오류와 프로그램 오류를 구분하는 구조화된 JSON 오류 출력
 - manifest 기반 REST executor
 - 대표 계좌조회 실호출 검증
 - JSON pretty/compact 출력
@@ -125,6 +126,7 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
 ### HTTP Layer
 - 공통 헤더와 인증을 캡슐화한 `KisClient`를 둔다.
 - API-level 에러(`rt_cd != "0"`)는 non-zero exit로 반환한다.
+- 런타임 오류는 `api_error`와 `program_error`로 나눈 JSON envelope를 stderr에 출력한다.
 - POST 요청은 필요 시 hashkey를 선발급받아 헤더에 넣을 수 있어야 한다.
 - 연속조회 API는 `tr_cont`와 `CTX_AREA_*` 컨텍스트를 manifest 정보로 자동 처리한다.
 

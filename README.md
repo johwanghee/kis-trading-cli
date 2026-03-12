@@ -226,8 +226,36 @@ cargo build --release
 - 비밀정보와 토큰 캐시는 저장소 안이 아니라 OS 전용 디렉터리에 둡니다.
 - config 파일의 민감값은 로컬 키 파일로 암호화 저장하고, 환경변수는 평문 override로 유지합니다.
 - key rotation은 keyring 방식으로 처리해 이전 key를 함께 보관하며, config는 새 active key로 다시 암호화합니다.
+- 오류 출력은 JSON envelope로 통일하고, `api_error`와 `program_error`를 분리해 LLM이 바로 다음 행동을 결정할 수 있게 합니다.
 - 출력은 JSON 우선으로 유지해 `jq`, PowerShell, 다른 에이전트에서 조합하기 쉽게 합니다.
 - TLS는 `reqwest` + `rustls` 기반으로 구성합니다.
+
+## 오류 형식
+
+런타임 실패 시 stderr에는 구조화된 JSON 오류가 출력됩니다.
+
+- `error_type = "api_error"`
+  - KIS가 HTTP 오류를 반환했거나 `rt_cd != "0"`을 반환한 경우
+- `error_type = "program_error"`
+  - 잘못된 CLI 입력, config/key 문제, 네트워크 실패, 로컬 I/O 문제, 내부 처리 실패
+
+공통 필드:
+
+- `message`
+- `llm_hint.summary`
+- `llm_hint.retryable`
+- `llm_hint.next_action`
+- `causes`
+
+추가 필드:
+
+- API 오류: `api_error.path`, `api_error.http_status`, `api_error.msg_cd`, `api_error.msg1`
+- 프로그램 오류: `program_error.category`, `program_error.detail`
+
+exit code:
+
+- `2`: `program_error`
+- `3`: `api_error`
 
 ## LLM 친화적 사용
 

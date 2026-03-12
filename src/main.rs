@@ -1,39 +1,87 @@
 mod api;
 mod cli;
 mod config;
+mod errors;
 mod manifest;
 
 use std::path::Path;
 use std::{io, io::Read};
 
 use anyhow::{anyhow, bail, Context, Result};
+use clap::error::ErrorKind;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use reqwest::Method;
 use serde_json::{Map, Value};
 
 use crate::api::{adjust_tr_id, ApiCallResponse, ApiRequest, KisClient};
 use crate::cli::Environment;
+use crate::errors::{
+    error_report_from_anyhow, error_report_from_clap, render_error_report, API_ERROR_EXIT_CODE,
+    PROGRAM_ERROR_EXIT_CODE,
+};
 use crate::manifest::{
     display_command_name, load_manifest, visible_params, ApiEntry, ApiManifest, ApiParam, TrIdSpec,
 };
 
 fn main() {
-    if let Err(error) = run() {
-        eprintln!("error: {error:#}");
-        std::process::exit(1);
+    let compact = requested_compact_output();
+
+    match run() {
+        Ok(()) => {}
+        Err(RunFailure::Clap(error))
+            if matches!(
+                error.kind(),
+                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion
+            ) =>
+        {
+            let _ = error.print();
+            std::process::exit(0);
+        }
+        Err(RunFailure::Clap(error)) => {
+            eprintln!(
+                "{}",
+                render_error_report(&error_report_from_clap(&error), compact)
+            );
+            std::process::exit(PROGRAM_ERROR_EXIT_CODE);
+        }
+        Err(RunFailure::Runtime(error)) => {
+            let report = error_report_from_anyhow(&error);
+            eprintln!("{}", render_error_report(&report, compact));
+            std::process::exit(match report.error_type {
+                "api_error" => API_ERROR_EXIT_CODE,
+                _ => PROGRAM_ERROR_EXIT_CODE,
+            });
+        }
     }
 }
 
-fn run() -> Result<()> {
+enum RunFailure {
+    Clap(clap::Error),
+    Runtime(anyhow::Error),
+}
+
+impl From<clap::Error> for RunFailure {
+    fn from(value: clap::Error) -> Self {
+        Self::Clap(value)
+    }
+}
+
+impl From<anyhow::Error> for RunFailure {
+    fn from(value: anyhow::Error) -> Self {
+        Self::Runtime(value)
+    }
+}
+
+fn run() -> std::result::Result<(), RunFailure> {
     let manifest = load_manifest()?;
-    let matches = build_cli(manifest).get_matches();
+    let matches = build_cli(manifest).try_get_matches()?;
     let env = environment_from_matches(&matches)?;
     let config_path = matches.get_one::<String>("config").map(String::as_str);
     let compact = matches.get_flag("compact");
 
     match matches.subcommand() {
-        Some(("config", sub_matches)) => handle_config(sub_matches, config_path, compact),
-        Some(("catalog", sub_matches)) => handle_catalog(manifest, sub_matches, compact),
+        Some(("config", sub_matches)) => Ok(handle_config(sub_matches, config_path, compact)?),
+        Some(("catalog", sub_matches)) => Ok(handle_catalog(manifest, sub_matches, compact)?),
         Some((category_name, category_matches)) => {
             let category = manifest
                 .category_by_name(category_name)
@@ -50,10 +98,14 @@ fn run() -> Result<()> {
 
             let client = build_client(config_path.map(Path::new), env)?;
             let payload = execute_manifest_api(&client, entry, api_matches)?;
-            print_json(&payload, compact)
+            Ok(print_json(&payload, compact)?)
         }
-        None => bail!("no command provided"),
+        None => Err(anyhow!("no command provided").into()),
     }
+}
+
+fn requested_compact_output() -> bool {
+    std::env::args_os().any(|argument| argument == "--compact")
 }
 
 fn build_cli(manifest: &ApiManifest) -> Command {

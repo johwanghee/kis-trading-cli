@@ -45,6 +45,10 @@
   - `config key rotate`
   - keyring format with active key + previous keys
   - backward-compatible read support for legacy single-key files
+- Added structured runtime error reporting:
+  - `api_error` for KIS HTTP / `rt_cd != "0"` failures
+  - `program_error` for CLI/config/network/local runtime failures
+  - JSON envelope with `llm_hint`, `causes`, and stable exit codes
 - Verified `config init` writes a template to the OS-specific config directory outside the repository.
 - Loaded user-provided credentials into the external config file only, not into the repository.
 - Rotated the local default config key into keyring format and verified the migrated config remains usable.
@@ -73,6 +77,10 @@
   - `account_product_code`, URLs, and `user_agent` stay plaintext in config
   - environment variables override config without decryption
   - key rotation upgrades local key handling to keyring format while keeping previous keys available for decryption
+- Error strategy:
+  - stderr uses structured JSON for runtime failures
+  - exit code `2` means `program_error`
+  - exit code `3` means `api_error`
 - Current visible command model:
   - `config`
   - `catalog`
@@ -89,7 +97,7 @@
 
 - `cargo fmt -- --check`: passed
 - `cargo check`: passed
-- `cargo test`: passed (`10` tests)
+- `cargo test`: passed (`12` tests)
 - `cargo run -- --help`: passed
 - `cargo run -- domestic-stock --help`: passed
 - `cargo run -- domestic-stock inquire-balance --help`: passed
@@ -101,7 +109,9 @@
 - `.github/workflows/prebuilt.yml`: YAML syntax validated locally
 - `./target/release/kis-trading-cli config key rotate --compact`: passed against the local default config
 - `./target/release/kis-trading-cli config key status --compact`: keyring format confirmed
-- `cargo test`: passed after adding key lifecycle tests (`10` tests)
+- `cargo test`: passed after adding key lifecycle and error classification tests (`12` tests)
+- `./target/release/kis-trading-cli config set-secret --field app-key`: structured `program_error` confirmed
+- `./target/release/kis-trading-cli domestic-stock inquire-balance ... --afhr-flpr-yn BAD`: structured `api_error` confirmed
 
 ## Risks / Blockers
 
@@ -110,6 +120,7 @@
 - macOS/Windows 배포의 코드 서명과 notarization은 아직 범위 밖이다.
 - 로컬 key file 기반 암호화는 평문 저장보다 안전하지만, 동일 사용자 권한의 완전한 비밀 저장소를 대체하지는 않는다.
 - key backup은 key snapshot이지 config snapshot이 아니므로, rollback에는 matching config와 함께 관리해야 한다.
+- `--help`와 `--version`은 clap 기본 출력 경로를 그대로 유지하므로 JSON 오류 envelope 대상이 아니다.
 
 ## Next
 
