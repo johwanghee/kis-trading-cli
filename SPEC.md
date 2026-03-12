@@ -97,8 +97,10 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
 
 ### Distribution
 - 기본 사용 흐름은 prebuilt 바이너리 다운로드를 우선으로 한다.
-- GitHub Actions는 macOS, Linux, Windows용 release binary를 매 빌드마다 생성한다.
-- `v*` 태그에서는 GitHub Release 자산으로 같은 바이너리를 업로드한다.
+- `install.sh`를 저장소 루트에 두고, raw GitHub URL로 `curl | bash` 설치를 지원한다.
+- 설치 스크립트는 OS/아키텍처를 감지하고 GitHub Release 존재와 asset URL을 확인해야 한다.
+- GitHub Actions는 macOS(x86_64, arm64), Linux(x86_64), Windows(x86_64)용 release binary를 매 빌드마다 생성한다.
+- `v*` 태그에서는 GitHub Release 자산으로 같은 바이너리와 checksum manifest를 업로드한다.
 - Homebrew, Scoop, apt/rpm 같은 패키지 매니저 배포는 아직 범위 밖이다.
 
 ### Config

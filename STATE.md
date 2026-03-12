@@ -30,9 +30,14 @@
   - `tools/render_cli_reference.py` to regenerate the reference from the embedded manifest
 - Added GitHub Actions workflow for prebuilt binaries:
   - macOS x86_64 archive
+  - macOS arm64 archive
   - Linux x86_64 archive
   - Windows x86_64 archive
   - GitHub Release asset upload on `v*` tags
+- Added a public install script:
+  - root `install.sh` supports `curl | bash`
+  - detects OS/architecture, resolves GitHub Release, and downloads the matching asset
+  - verifies `sha256sums.txt` when available
 - Added encrypted config secret storage:
   - `config set-secret` for encrypted writes
   - `config seal` for migrating plaintext config values
@@ -74,8 +79,9 @@
   - generated command reference for full catalog coverage
 - Distribution strategy:
   - prebuilt binaries are the primary user flow
+  - raw GitHub `install.sh` is the primary bootstrap path for macOS/Linux shells
   - GitHub Actions artifacts on push, pull_request, and manual runs
-  - GitHub Release assets on `v*` tags
+  - GitHub Release assets and `sha256sums.txt` on `v*` tags
 - Secret strategy:
   - config stores encrypted values for `app_key`, `app_secret`, `account_no`, `hts_id`
   - `account_product_code`, URLs, and `user_agent` stay plaintext in config
@@ -119,12 +125,18 @@
 - `./target/release/kis-trading-cli domestic-stock inquire-balance ... --afhr-flpr-yn BAD`: structured `api_error` confirmed
 - `./target/release/kis-trading-cli --config <temp> config key status --compact`: plaintext fields and `seal_required` confirmed
 - `./target/release/kis-trading-cli --config <temp> auth token --compact`: structured `program_error` with `plaintext_secret_detected` and remediation commands confirmed
+- `bash -n ./install.sh`: passed
+- `./install.sh --help`: passed
+- `./install.sh --dry-run`: public repo currently returns a clear "no GitHub Release may be published yet" error
+- `./install.sh` with local mock release metadata/assets: passed through download, checksum verification, extraction, and install
+- `.github/workflows/prebuilt.yml`: release checksum manifest step added
 
 ## Risks / Blockers
 
 - The local machine now has Rust installed through Homebrew; if that is not desired long-term, the user may want to manage the toolchain with `rustup` later.
 - 일부 주문 API는 복잡한 TR ID/파라미터 조합이 있으므로 실제 주문까지 검증하려면 추가 실계좌/모의계좌 테스트가 필요하다.
 - macOS/Windows 배포의 코드 서명과 notarization은 아직 범위 밖이다.
+- 실제 공개 GitHub Release 객체가 아직 없으면 `install.sh`는 의도적으로 설치를 중단한다.
 - 로컬 key file 기반 암호화는 평문 저장보다 안전하지만, 동일 사용자 권한의 완전한 비밀 저장소를 대체하지는 않는다.
 - key backup은 key snapshot이지 config snapshot이 아니므로, rollback에는 matching config와 함께 관리해야 한다.
 - `--help`와 `--version`은 clap 기본 출력 경로를 그대로 유지하므로 JSON 오류 envelope 대상이 아니다.
