@@ -55,6 +55,7 @@
 - 카테고리별 동적 CLI 도움말/명령 트리
 - 사람용 README와 LLM 전용 운영 문서 분리
 - manifest 기반 전체 CLI reference 생성
+- GitHub Actions 기반 3개 OS prebuilt binary 빌드와 release asset 업로드
 - manifest 기반 REST executor
 - 대표 계좌조회 실호출 검증
 - JSON pretty/compact 출력
@@ -63,6 +64,7 @@
 - 웹소켓 스트리밍
 - 자동 재시도, rate-limit 백오프 고도화
 - 설치 패키징(Homebrew, Scoop, deb/rpm 등)
+- 코드 서명 및 notarization
 
 ## CLI Shape
 
@@ -90,6 +92,12 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
   - `docs/CLI_REFERENCE.md`: manifest에서 생성한 전체 명령 레퍼런스
   - `data/kis_api_manifest.json`: 기계 판독용 원본
 
+### Distribution
+- 기본 사용 흐름은 prebuilt 바이너리 다운로드를 우선으로 한다.
+- GitHub Actions는 macOS, Linux, Windows용 release binary를 매 빌드마다 생성한다.
+- `v*` 태그에서는 GitHub Release 자산으로 같은 바이너리를 업로드한다.
+- Homebrew, Scoop, apt/rpm 같은 패키지 매니저 배포는 아직 범위 밖이다.
+
 ### Config
 - 기본 위치는 OS별 app config directory를 사용한다.
 - config 파일 형식은 TOML로 한다.
@@ -115,4 +123,4 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
 
 - 주문 API에서 hashkey가 실제 필수인 엔드포인트 범위를 문서 기준으로 다시 정리할 필요가 있다.
 - 카테고리 도움말이 너무 길어지는 문제는 문서 분리로 1차 완화했지만, CLI 자체에도 요약/검색 UX를 추가할지 검토가 필요하다.
-- 배포 방식(Homebrew, GitHub Releases, Windows zip/msi)은 1차 기능 안정화 후 결정한다.
+- 코드 서명과 notarization을 어떤 시점에 도입할지 결정이 필요하다.
