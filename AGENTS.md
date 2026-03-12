@@ -11,9 +11,10 @@
 
 ## Current MVP Boundary
 - `config init`: write a local config template outside the repo.
-- `auth token`: issue or reuse an OAuth token.
-- `quote domestic-price`: fetch current domestic stock price.
-- `api get` / `api post`: generic REST escape hatch for unsupported endpoints.
+- Embed the official KIS API catalog in the binary.
+- Expose official API categories and functions as CLI commands so `--help` reveals the command surface.
+- Use a manifest-driven executor for the official REST APIs instead of raw URL-first UX.
+- Keep auth/token flows and account-backed APIs usable through local config defaults.
 
 ## Engineering Rules
 - Do not commit real app keys, app secrets, account numbers, or token cache files.

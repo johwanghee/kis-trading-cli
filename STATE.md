@@ -3,7 +3,7 @@
 ## Snapshot
 
 - Date: 2026-03-12
-- Status: phase-1 scaffold implemented
+- Status: manifest-driven CLI implemented
 - Workspace started as an almost-empty git repository.
 - Rust toolchain was not available on PATH at start, then installed via Homebrew for local verification.
 
@@ -18,11 +18,16 @@
   - config template generation
   - OAuth token issuance and cache
   - file lock around token refresh/cache updates for concurrent test safety
-  - domestic stock current price command
-  - generic REST `GET` / `POST`
+  - embedded official API manifest (`166` APIs, `8` categories)
+  - category/API command tree generated from the manifest
+  - generic REST executor driven by manifest metadata
+  - special TR ID resolvers for the small set of multi-branch order APIs
   - optional hashkey support for POST
-  - JSON path selection for CLI output
 - Verified `config init` writes a template to the OS-specific config directory outside the repository.
+- Loaded user-provided credentials into the external config file only, not into the repository.
+- Verified live calls against demo environment using the new command tree:
+  - `auth token`
+  - `domestic-stock inquire-balance`
 
 ## Active Decisions
 
@@ -31,11 +36,18 @@
 - Config format: TOML
 - Config storage: OS-specific app config directory
 - Token cache storage: OS-specific app cache directory
-- Initial supported feature set:
-  - config template generation
-  - OAuth token issuance/cache
-  - domestic stock current price quote
-  - generic REST GET/POST
+- Command surface source: generated manifest from official `MCP` config + `examples_llm`
+- Current visible command model:
+  - `config`
+  - `catalog`
+  - `auth`
+  - `domestic-stock`
+  - `domestic-bond`
+  - `domestic-futureoption`
+  - `overseas-stock`
+  - `overseas-futureoption`
+  - `etfetn`
+  - `elw`
 
 ## Verification
 
@@ -43,16 +55,20 @@
 - `cargo check`: passed
 - `cargo test`: passed (`6` tests)
 - `cargo run -- --help`: passed
+- `cargo run -- domestic-stock --help`: passed
+- `cargo run -- domestic-stock inquire-balance --help`: passed
 - `cargo run -- config path`: passed
 - `cargo run -- config init`: passed
+- `./target/release/kis-trading-cli auth token`: passed against demo credentials
+- `./target/release/kis-trading-cli domestic-stock inquire-balance ...`: passed against demo credentials
 
 ## Risks / Blockers
 
-- Live API verification is blocked until valid KIS app credentials are configured.
 - The local machine now has Rust installed through Homebrew; if that is not desired long-term, the user may want to manage the toolchain with `rustup` later.
+- 일부 주문 API는 복잡한 TR ID/파라미터 조합이 있으므로 실제 주문까지 검증하려면 추가 실계좌/모의계좌 테스트가 필요하다.
 
 ## Next
 
-- Fill generated config with KIS credentials and run live token/quote commands.
-- Decide the next wrapped endpoints after `quote domestic-price` (likely balance, order, or overseas quote).
+- 더 많은 live smoke test를 추가한다. 특히 주문 전 조회, 해외주식 조회, 선물옵션 조회를 우선 검증한다.
+- help 출력이 길어지는 카테고리에 대해 요약/검색 명령을 추가할지 결정한다.
 - Add release packaging strategy once the command surface stabilizes.

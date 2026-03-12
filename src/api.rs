@@ -5,7 +5,7 @@ use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Duration, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Asia::Seoul;
 use reqwest::blocking::{Client, RequestBuilder};
-use reqwest::Method;
+use reqwest::{header::HeaderMap, Method};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -35,10 +35,17 @@ pub struct ApiRequest {
     pub method: Method,
     pub path: String,
     pub tr_id: Option<String>,
+    pub auto_adjust_tr_id: bool,
     pub tr_cont: String,
     pub query: Vec<(String, String)>,
     pub body: Option<Value>,
     pub hashkey: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ApiCallResponse {
+    pub body: Value,
+    pub tr_cont: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +73,11 @@ struct HashKeyResponse {
     hash: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct ApprovalResponse {
+    approval_key: String,
+}
+
 pub struct KisClient {
     http: Client,
     profile: ResolvedProfile,
@@ -90,15 +102,84 @@ impl KisClient {
         })
     }
 
+    pub fn profile(&self) -> &ResolvedProfile {
+        &self.profile
+    }
+
     pub fn cache_path(&self) -> &Path {
         &self.cache_path
     }
 
     pub fn access_token(&self, force_refresh: bool) -> Result<AccessTokenInfo> {
-        // Hold an exclusive lock across read-check-refresh-write so concurrent
-        // test processes do not stampede the token endpoint.
         let _lock = self.acquire_token_lock()?;
         self.access_token_locked(force_refresh)
+    }
+
+    pub fn websocket_approval_key(&self) -> Result<Value> {
+        let payload = json!({
+            "grant_type": "client_credentials",
+            "appkey": self.profile.app_key,
+            "secretkey": self.profile.app_secret,
+        });
+
+        let url = self.build_url("/oauth2/Approval");
+        let response = self
+            .http
+            .post(url)
+            .header("content-type", "application/json")
+            .header("accept", "text/plain")
+            .header("charset", "UTF-8")
+            .json(&payload)
+            .send()
+            .context("failed to request websocket approval key")?;
+
+        let status = response.status();
+        let text = response
+            .text()
+            .context("failed to read websocket approval response body")?;
+        if !status.is_success() {
+            return Err(anyhow!(
+                "KIS websocket approval HTTP error {status}: {text}"
+            ));
+        }
+
+        let parsed: ApprovalResponse =
+            serde_json::from_str(&text).context("failed to parse websocket approval response")?;
+
+        Ok(json!({
+            "environment": self.profile.environment,
+            "approval_key": parsed.approval_key,
+        }))
+    }
+
+    pub fn send_request(&self, request: ApiRequest) -> Result<ApiCallResponse> {
+        let token = self.access_token(false)?;
+        let url = self.build_url(&request.path);
+
+        let mut builder = self.authorized_request(
+            request.method.clone(),
+            &url,
+            &token.access_token,
+            request.tr_id.as_deref(),
+            request.auto_adjust_tr_id,
+            &request.tr_cont,
+        );
+
+        if !request.query.is_empty() {
+            builder = builder.query(&request.query);
+        }
+
+        if let Some(body) = request.body {
+            if request.hashkey {
+                let hash = self.fetch_hashkey(&token.access_token, &body)?;
+                builder = builder.header("hashkey", hash);
+            }
+
+            builder = builder.json(&body);
+        }
+
+        let response = builder.send().context("failed to execute KIS request")?;
+        parse_api_response(response, &request.path)
     }
 
     fn access_token_locked(&self, force_refresh: bool) -> Result<AccessTokenInfo> {
@@ -162,41 +243,13 @@ impl KisClient {
         })
     }
 
-    pub fn send_request(&self, request: ApiRequest) -> Result<Value> {
-        let token = self.access_token(false)?;
-        let url = self.build_url(&request.path);
-
-        let mut builder = self.authorized_request(
-            request.method.clone(),
-            &url,
-            &token.access_token,
-            request.tr_id.as_deref(),
-            &request.tr_cont,
-        );
-
-        if !request.query.is_empty() {
-            builder = builder.query(&request.query);
-        }
-
-        if let Some(body) = request.body {
-            if request.hashkey {
-                let hash = self.fetch_hashkey(&token.access_token, &body)?;
-                builder = builder.header("hashkey", hash);
-            }
-
-            builder = builder.json(&body);
-        }
-
-        let response = builder.send().context("failed to execute KIS request")?;
-        parse_api_response(response, &request.path)
-    }
-
     fn authorized_request(
         &self,
         method: Method,
         url: &str,
         access_token: &str,
         tr_id: Option<&str>,
+        auto_adjust_tr_id: bool,
         tr_cont: &str,
     ) -> RequestBuilder {
         let mut builder = self
@@ -212,7 +265,12 @@ impl KisClient {
             .header("tr_cont", tr_cont);
 
         if let Some(tr_id) = tr_id {
-            builder = builder.header("tr_id", adjust_tr_id(self.profile.environment, tr_id));
+            let header_value = if auto_adjust_tr_id {
+                adjust_tr_id(self.profile.environment, tr_id)
+            } else {
+                tr_id.to_string()
+            };
+            builder = builder.header("tr_id", header_value);
         }
 
         builder
@@ -221,7 +279,7 @@ impl KisClient {
     fn fetch_hashkey(&self, access_token: &str, body: &Value) -> Result<String> {
         let url = self.build_url("/uapi/hashkey");
         let response = self
-            .authorized_request(Method::POST, &url, access_token, None, "")
+            .authorized_request(Method::POST, &url, access_token, None, false, "")
             .json(body)
             .send()
             .context("failed to request hashkey")?;
@@ -347,7 +405,7 @@ impl TokenCache {
     }
 }
 
-fn adjust_tr_id(environment: Environment, tr_id: &str) -> String {
+pub fn adjust_tr_id(environment: Environment, tr_id: &str) -> String {
     if matches!(environment, Environment::Demo) {
         let mut chars = tr_id.chars();
         if let Some(first) = chars.next() {
@@ -371,8 +429,12 @@ fn parse_kis_datetime(raw: &str) -> Result<DateTime<Utc>> {
     Ok(zoned.with_timezone(&Utc))
 }
 
-fn parse_api_response(response: reqwest::blocking::Response, path: &str) -> Result<Value> {
+fn parse_api_response(
+    response: reqwest::blocking::Response,
+    path: &str,
+) -> Result<ApiCallResponse> {
     let status = response.status();
+    let headers = response.headers().clone();
     let text = response
         .text()
         .with_context(|| format!("failed to read response body for {path}"))?;
@@ -398,7 +460,17 @@ fn parse_api_response(response: reqwest::blocking::Response, path: &str) -> Resu
         }
     }
 
-    Ok(value)
+    Ok(ApiCallResponse {
+        body: value,
+        tr_cont: header_string(&headers, "tr_cont").unwrap_or_default(),
+    })
+}
+
+fn header_string(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(ToString::to_string)
 }
 
 #[cfg(test)]
