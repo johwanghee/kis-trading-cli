@@ -33,24 +33,28 @@ CLI 명령 트리로 그대로 노출합니다.
 
 ## 빠른 시작
 
-### 1. 빌드
+### 1. 바이너리 받기
 
-```bash
-cargo build --release
-```
+권장 방식은 GitHub Releases 또는 GitHub Actions artifacts에서 OS별 prebuilt 바이너리를
+받아 사용하는 것입니다.
 
-빌드 결과:
+제공 대상:
 
-- macOS/Linux: `./target/release/kis-trading-cli`
-- Windows: `.\target\release\kis-trading-cli.exe`
+- macOS x86_64: `kis-trading-cli-macos-x86_64.tar.gz`
+- Linux x86_64: `kis-trading-cli-linux-x86_64.tar.gz`
+- Windows x86_64: `kis-trading-cli-windows-x86_64.zip`
 
-명령 구조는 동일하고 실행 파일 확장자만 다릅니다.
+압축을 푼 뒤 실행 파일을 `PATH`에 두면 아래 예제를 그대로 사용할 수 있습니다.
+현재 디렉터리에서 바로 실행할 때만 OS에 따라 다음처럼 앞에 경로를 붙이면 됩니다.
+
+- macOS/Linux: `./kis-trading-cli`
+- Windows: `.\kis-trading-cli.exe`
 
 ### 2. 설정 파일 경로 확인 및 초기화
 
 ```bash
-./target/release/kis-trading-cli config path
-./target/release/kis-trading-cli config init
+kis-trading-cli config path
+kis-trading-cli config init
 ```
 
 config와 token cache는 저장소 밖 OS 전용 경로에 생성됩니다.
@@ -84,13 +88,13 @@ config 파일에는 아래 값을 넣습니다.
 토큰 발급:
 
 ```bash
-./target/release/kis-trading-cli auth token
+kis-trading-cli auth token
 ```
 
 국내주식 현재가:
 
 ```bash
-./target/release/kis-trading-cli domestic-stock inquire-price \
+kis-trading-cli domestic-stock inquire-price \
   --fid-cond-mrkt-div-code J \
   --fid-input-iscd 005930
 ```
@@ -98,7 +102,7 @@ config 파일에는 아래 값을 넣습니다.
 국내주식 잔고조회:
 
 ```bash
-./target/release/kis-trading-cli domestic-stock inquire-balance \
+kis-trading-cli domestic-stock inquire-balance \
   --afhr-flpr-yn N \
   --inqr-dvsn 01 \
   --unpr-dvsn 01 \
@@ -112,27 +116,54 @@ config 파일에는 아래 값을 넣습니다.
 최상위 카테고리:
 
 ```bash
-./target/release/kis-trading-cli --help
+kis-trading-cli --help
 ```
 
 특정 카테고리:
 
 ```bash
-./target/release/kis-trading-cli domestic-stock --help
+kis-trading-cli domestic-stock --help
 ```
 
 특정 API:
 
 ```bash
-./target/release/kis-trading-cli domestic-stock inquire-balance --help
+kis-trading-cli domestic-stock inquire-balance --help
 ```
 
 내장 카탈로그 요약/내보내기:
 
 ```bash
-./target/release/kis-trading-cli catalog summary
-./target/release/kis-trading-cli catalog export --compact
+kis-trading-cli catalog summary
+kis-trading-cli catalog export --compact
 ```
+
+## Prebuilt 빌드
+
+GitHub Actions는 다음 3종 prebuilt 산출물을 만듭니다.
+
+- `macos-13`에서 빌드한 `kis-trading-cli-macos-x86_64.tar.gz`
+- `ubuntu-22.04`에서 빌드한 `kis-trading-cli-linux-x86_64.tar.gz`
+- `windows-2022`에서 빌드한 `kis-trading-cli-windows-x86_64.zip`
+
+동작 방식:
+
+- `push`, `pull_request`, `workflow_dispatch` 때마다 3종 빌드를 수행합니다.
+- 각 빌드 산출물은 GitHub Actions artifact로 업로드됩니다.
+- `v*` 형식 태그를 push하면 같은 산출물을 GitHub Release 자산으로도 업로드합니다.
+
+## 소스에서 직접 빌드하기
+
+prebuilt 바이너리 대신 로컬에서 직접 빌드하려면 아래를 사용합니다.
+
+```bash
+cargo build --release
+```
+
+빌드 결과:
+
+- macOS/Linux: `./target/release/kis-trading-cli`
+- Windows: `.\target\release\kis-trading-cli.exe`
 
 ## 설계 원칙
 
