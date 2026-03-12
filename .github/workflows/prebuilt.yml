@@ -26,6 +26,12 @@ jobs:
             artifact_stem: kis-trading-cli-macos-x86_64
             binary_path: target/release/kis-trading-cli
             binary_name: kis-trading-cli
+          - name: macOS arm64
+            os: macos-14
+            archive_name: kis-trading-cli-macos-arm64.tar.gz
+            artifact_stem: kis-trading-cli-macos-arm64
+            binary_path: target/release/kis-trading-cli
+            binary_name: kis-trading-cli
           - name: Linux x86_64
             os: ubuntu-22.04
             archive_name: kis-trading-cli-linux-x86_64.tar.gz
@@ -94,9 +100,15 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Generate SHA-256 checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > sha256sums.txt
+
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.tar.gz
             dist/*.zip
+            dist/sha256sums.txt

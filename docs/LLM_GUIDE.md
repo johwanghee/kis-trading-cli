@@ -10,6 +10,17 @@
 3. 실제 파라미터 help `kis-trading-cli <category> <api> --help`
 4. 기계가 읽는 원본 `data/kis_api_manifest.json`
 
+## 설치
+
+바이너리가 아직 없으면 설치 스크립트를 우선 사용합니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johwanghee/kis-trading-cli/main/install.sh | bash
+```
+
+이 스크립트는 GitHub Release를 조회해 현재 OS/아키텍처에 맞는 prebuilt 바이너리를 설치합니다.
+GitHub Release가 아직 발행되지 않았다면 수동 binary 다운로드로 fallback 합니다.
+
 ## 명령 문법
 
 기본 형태:

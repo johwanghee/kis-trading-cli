@@ -35,12 +35,37 @@ CLI 명령 트리로 그대로 노출합니다.
 
 ### 1. 바이너리 받기
 
-권장 방식은 GitHub Releases 또는 GitHub Actions artifacts에서 OS별 prebuilt 바이너리를
-받아 사용하는 것입니다.
+권장 방식은 설치 스크립트로 최신 GitHub Release를 받는 것입니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johwanghee/kis-trading-cli/main/install.sh | bash
+```
+
+설치 스크립트는 다음을 자동으로 처리합니다.
+
+- 현재 OS와 아키텍처 감지
+- 최신 GitHub Release 확인
+- 대응되는 release asset 다운로드
+- 가능하면 `sha256sums.txt`로 checksum 검증
+- 기본 설치 경로 `~/.local/bin`
+
+이 방식은 GitHub Release가 실제로 발행되어 있어야 동작합니다.
+Release가 아직 없으면 아래 수동 설치 흐름을 사용하면 됩니다.
+
+버전 고정이나 경로 변경도 가능합니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johwanghee/kis-trading-cli/main/install.sh | \
+  bash -s -- --version v1.0.1 --install-dir ~/.local/bin
+```
+
+수동 설치가 필요하면 GitHub Releases 또는 GitHub Actions artifacts에서 OS별 prebuilt 바이너리를
+직접 받아도 됩니다.
 
 제공 대상:
 
 - macOS x86_64: `kis-trading-cli-macos-x86_64.tar.gz`
+- macOS arm64: `kis-trading-cli-macos-arm64.tar.gz`
 - Linux x86_64: `kis-trading-cli-linux-x86_64.tar.gz`
 - Windows x86_64: `kis-trading-cli-windows-x86_64.zip`
 
@@ -206,17 +231,18 @@ kis-trading-cli catalog export --compact
 
 ## Prebuilt 빌드
 
-GitHub Actions는 다음 3종 prebuilt 산출물을 만듭니다.
+GitHub Actions는 다음 prebuilt 산출물을 만듭니다.
 
 - `macos-13`에서 빌드한 `kis-trading-cli-macos-x86_64.tar.gz`
+- `macos-14`에서 빌드한 `kis-trading-cli-macos-arm64.tar.gz`
 - `ubuntu-22.04`에서 빌드한 `kis-trading-cli-linux-x86_64.tar.gz`
 - `windows-2022`에서 빌드한 `kis-trading-cli-windows-x86_64.zip`
 
 동작 방식:
 
-- `push`, `pull_request`, `workflow_dispatch` 때마다 3종 빌드를 수행합니다.
+- `push`, `pull_request`, `workflow_dispatch` 때마다 전체 prebuilt 빌드를 수행합니다.
 - 각 빌드 산출물은 GitHub Actions artifact로 업로드됩니다.
-- `v*` 형식 태그를 push하면 같은 산출물을 GitHub Release 자산으로도 업로드합니다.
+- `v*` 형식 태그를 push하면 같은 산출물과 `sha256sums.txt`를 GitHub Release 자산으로 업로드합니다.
 
 ## 소스에서 직접 빌드하기
 
