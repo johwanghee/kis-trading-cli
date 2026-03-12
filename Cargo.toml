@@ -1,6 +1,6 @@
 [package]
 name = "kis-trading-cli"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 description = "Cross-platform CLI for Korea Investment & Securities Open API"
 license = "MIT"
@@ -15,4 +15,3 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
-
