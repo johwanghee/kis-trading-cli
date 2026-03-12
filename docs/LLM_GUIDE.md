@@ -39,6 +39,8 @@ kis-trading-cli catalog <subcommand>
 
 이 CLI는 일부 파라미터를 help에서 숨기고 config 또는 환경변수에서 자동으로 채웁니다.
 
+로컬 config의 민감값은 암호문으로 저장할 수 있고, 환경변수는 평문 override로 그대로 사용합니다.
+
 자동 주입되는 대표 필드:
 
 - `appkey`
@@ -64,7 +66,7 @@ kis-trading-cli catalog <subcommand>
 중요한 값은 아래 우선순위로 해석됩니다.
 
 1. 환경변수
-2. config 파일
+2. config 파일의 복호화된 값
 3. 일부 URL/agent는 기본값
 
 대표 환경변수:
@@ -83,6 +85,13 @@ kis-trading-cli catalog <subcommand>
 - `KIS_DEMO_HTS_ID`
 - `KIS_USER_AGENT`
 
+config 관련 보조 명령:
+
+- `kis-trading-cli config path`
+- `kis-trading-cli config init`
+- `kis-trading-cli config set-secret --profile <real|demo> --field <app-key|app-secret|account-no|hts-id> --stdin`
+- `kis-trading-cli config seal`
+
 ## 권장 탐색 절차
 
 LLM이 처음 이 CLI를 사용할 때 권장 순서는 아래와 같습니다.
@@ -100,6 +109,8 @@ LLM이 처음 이 CLI를 사용할 때 권장 순서는 아래와 같습니다.
 
 - config 파일 경로 확인: `kis-trading-cli config path`
 - config 템플릿 생성: `kis-trading-cli config init`
+- 암호화된 비밀값 저장: `kis-trading-cli config set-secret`
+- 기존 평문 비밀값 암호화: `kis-trading-cli config seal`
 
 ### 카탈로그 탐색
 
@@ -177,6 +188,7 @@ kis-trading-cli catalog export --compact
 
 - raw URL을 직접 조립해서 호출하는 도구라고 가정하지 않습니다.
 - help에 안 보이는 인증/계좌 파라미터를 수동으로 항상 넘길 필요는 없습니다.
+- 환경변수까지 암호화해서 넘겨야 한다고 가정하지 않습니다.
 - 모든 API가 실전/모의에서 동일 TR ID를 쓰는 것은 아닙니다.
 - 주문 API 일부는 환경/입력에 따라 별도 TR ID resolver를 사용합니다.
 

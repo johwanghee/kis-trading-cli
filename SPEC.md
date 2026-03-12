@@ -56,6 +56,7 @@
 - 사람용 README와 LLM 전용 운영 문서 분리
 - manifest 기반 전체 CLI reference 생성
 - GitHub Actions 기반 3개 OS prebuilt binary 빌드와 release asset 업로드
+- config 비밀값 암복호화 저장과 plaintext-to-encrypted migration command
 - manifest 기반 REST executor
 - 대표 계좌조회 실호출 검증
 - JSON pretty/compact 출력
@@ -103,11 +104,20 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
 - config 파일 형식은 TOML로 한다.
 - `real`, `demo` 프로필을 분리한다.
 - 환경변수로 주요 값을 override 할 수 있게 한다.
+- 환경변수는 평문 입력을 그대로 사용한다.
+- config의 민감값(`app_key`, `app_secret`, `account_no`, `hts_id`)은 로컬 암호화 키로 저장/복호화할 수 있어야 한다.
+- 기존 평문 config를 암호문으로 바꾸는 migration command를 제공한다.
 
 ### Token Cache
 - OS별 cache directory에 JSON 파일로 저장한다.
 - 만료 60초 전부터는 재사용하지 않는다.
 - KIS 토큰 만료 문자열은 공식 샘플 기준 KST(`Asia/Seoul`) 시각으로 해석한다.
+
+### Secret Storage
+- config 비밀값은 `enc:kis:v1:` prefix의 암호문 문자열로 저장한다.
+- 암호화 키는 OS 전용 앱 디렉터리에 저장하며, custom config path를 쓰면 그 config 파일 옆 key file을 사용한다.
+- 같은 값이 환경변수와 config에 동시에 있으면 환경변수가 우선한다.
+- 이 구조는 주로 평문 노출과 실수로 인한 유출을 줄이기 위한 것이며, 동일 사용자 권한의 완전한 격리는 범위 밖이다.
 
 ### HTTP Layer
 - 공통 헤더와 인증을 캡슐화한 `KisClient`를 둔다.

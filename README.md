@@ -58,21 +58,51 @@ kis-trading-cli config init
 ```
 
 config와 token cache는 저장소 밖 OS 전용 경로에 생성됩니다.
+config 비밀값 암호화에 쓰는 로컬 키 파일도 함께 사용됩니다.
 
 ### 3. config 채우기
 
-config 파일에는 아래 값을 넣습니다.
+기본 원칙은 이렇습니다.
+
+- 비밀값은 `config set-secret`으로 넣어 config 파일에 암호문으로 저장
+- 이미 config에 평문이 있다면 `config seal`로 일괄 암호화
+- 환경변수는 자동화/CI 용도로 평문 override 유지
+
+config 파일에서 직접 채워도 되는 값:
+
+- `user_agent`
+- `profiles.real.base_url`
+- `profiles.real.websocket_url`
+- `profiles.real.account_product_code`
+- `profiles.demo.base_url`
+- `profiles.demo.websocket_url`
+- `profiles.demo.account_product_code`
+
+암호화 저장 권장 값:
 
 - `profiles.real.app_key`
 - `profiles.real.app_secret`
 - `profiles.real.account_no`
-- `profiles.real.account_product_code`
 - `profiles.real.hts_id`
 - `profiles.demo.app_key`
 - `profiles.demo.app_secret`
 - `profiles.demo.account_no`
-- `profiles.demo.account_product_code`
 - `profiles.demo.hts_id`
+
+예시:
+
+```bash
+kis-trading-cli config set-secret --profile real --field app-key --stdin
+kis-trading-cli config set-secret --profile real --field app-secret --stdin
+kis-trading-cli config set-secret --profile real --field account-no --stdin
+kis-trading-cli config set-secret --profile real --field hts-id --stdin
+```
+
+이미 평문으로 들어간 값을 한 번에 암호화:
+
+```bash
+kis-trading-cli config seal
+```
 
 환경변수 override도 지원합니다.
 
@@ -82,6 +112,8 @@ config 파일에는 아래 값을 넣습니다.
 - `KIS_DEMO_APP_SECRET`
 - `KIS_REAL_ACCOUNT_NO`
 - `KIS_DEMO_ACCOUNT_NO`
+
+환경변수는 복호화 없이 그대로 사용되며, 같은 값이 config에도 있으면 환경변수가 우선합니다.
 
 ### 4. 대표 명령 실행
 
@@ -169,6 +201,7 @@ cargo build --release
 
 - 공식 저장소와 포털 문서를 우선 기준으로 사용합니다.
 - 비밀정보와 토큰 캐시는 저장소 안이 아니라 OS 전용 디렉터리에 둡니다.
+- config 파일의 민감값은 로컬 키 파일로 암호화 저장하고, 환경변수는 평문 override로 유지합니다.
 - 출력은 JSON 우선으로 유지해 `jq`, PowerShell, 다른 에이전트에서 조합하기 쉽게 합니다.
 - TLS는 `reqwest` + `rustls` 기반으로 구성합니다.
 
