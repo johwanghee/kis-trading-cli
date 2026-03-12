@@ -1,2 +1,27 @@
-target/
+# Rust build artifacts
+/target/
 
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local
+.direnv/
+.envrc
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.orig
+
+# Editor settings and swap files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS-generated files
+.DS_Store
+Thumbs.db
