@@ -4,6 +4,8 @@ use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::config::PlaintextSecretError;
+
 pub const PROGRAM_ERROR_EXIT_CODE: i32 = 2;
 pub const API_ERROR_EXIT_CODE: i32 = 3;
 const RESPONSE_EXCERPT_LIMIT: usize = 1_000;
@@ -61,6 +63,10 @@ pub struct ProgramErrorPayload {
     pub category: &'static str,
     pub retryable: bool,
     pub detail: String,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub plaintext_secrets: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub suggested_commands: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -159,6 +165,16 @@ pub fn error_report_from_anyhow(error: &AnyError) -> ErrorEnvelope {
         return api_error_report(api_error, error.chain().map(ToString::to_string).collect());
     }
 
+    if let Some(plaintext_error) = error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<PlaintextSecretError>())
+    {
+        return plaintext_secret_report(
+            plaintext_error,
+            error.chain().map(ToString::to_string).collect(),
+        );
+    }
+
     let detail = error.to_string();
     let classification = classify_program_error(error, &detail);
 
@@ -177,6 +193,8 @@ pub fn error_report_from_anyhow(error: &AnyError) -> ErrorEnvelope {
             category: classification.category,
             retryable: classification.retryable,
             detail,
+            plaintext_secrets: Vec::new(),
+            suggested_commands: Vec::new(),
         }),
         causes: error.chain().map(ToString::to_string).collect(),
     }
@@ -209,6 +227,8 @@ pub fn error_report_from_clap(error: &clap::Error) -> ErrorEnvelope {
             category: "invalid_input",
             retryable: false,
             detail,
+            plaintext_secrets: Vec::new(),
+            suggested_commands: Vec::new(),
         }),
         causes: vec![error.kind().to_string()],
     }
@@ -275,6 +295,40 @@ fn api_error_report(api_error: &KisApiError, causes: Vec<String>) -> ErrorEnvelo
             response_excerpt: api_error.response_excerpt.clone(),
         }),
         program_error: None,
+        causes,
+    }
+}
+
+fn plaintext_secret_report(
+    plaintext_error: &PlaintextSecretError,
+    causes: Vec<String>,
+) -> ErrorEnvelope {
+    let suggested_commands = vec![
+        "kis-trading-cli config key status --compact".to_string(),
+        "kis-trading-cli config seal".to_string(),
+    ];
+
+    ErrorEnvelope {
+        ok: false,
+        error_type: "program_error",
+        exit_code: PROGRAM_ERROR_EXIT_CODE,
+        message: plaintext_error.to_string(),
+        llm_hint: LlmHint {
+            summary: format!(
+                "Sensitive config values are still stored in plaintext in {}.",
+                plaintext_error.config_path.display()
+            ),
+            retryable: false,
+            next_action: "Run `kis-trading-cli config key status --compact` to inspect plaintext fields, then run `kis-trading-cli config seal` or `kis-trading-cli config set-secret ...` to encrypt them.".to_string(),
+        },
+        api_error: None,
+        program_error: Some(ProgramErrorPayload {
+            category: "plaintext_secret_detected",
+            retryable: false,
+            detail: plaintext_error.to_string(),
+            plaintext_secrets: plaintext_error.plaintext_fields.clone(),
+            suggested_commands,
+        }),
         causes,
     }
 }
@@ -399,6 +453,7 @@ fn program_summary(category: &str, detail: &str) -> String {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
+    use std::path::PathBuf;
 
     use super::*;
 
@@ -435,5 +490,39 @@ mod tests {
                 .map(|payload| payload.category),
             Some("invalid_input")
         );
+    }
+
+    #[test]
+    fn plaintext_secret_error_includes_fix_commands() {
+        let report = error_report_from_anyhow(&AnyError::new(PlaintextSecretError {
+            config_path: PathBuf::from("/tmp/config.toml"),
+            plaintext_fields: vec![
+                "profiles.demo.app_key".to_string(),
+                "profiles.demo.app_secret".to_string(),
+            ],
+        }));
+
+        assert_eq!(report.error_type, "program_error");
+        assert_eq!(
+            report
+                .program_error
+                .as_ref()
+                .map(|payload| payload.category),
+            Some("plaintext_secret_detected")
+        );
+        assert_eq!(
+            report
+                .program_error
+                .as_ref()
+                .map(|payload| payload.plaintext_secrets.len()),
+            Some(2)
+        );
+        assert!(report
+            .program_error
+            .as_ref()
+            .map(|payload| payload
+                .suggested_commands
+                .contains(&"kis-trading-cli config seal".to_string()))
+            .unwrap_or(false));
     }
 }

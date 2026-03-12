@@ -237,7 +237,10 @@ fn key_command() -> Command {
         .about("Manage config encryption keys")
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(Command::new("status").about("Show key file status for the current config"))
+        .subcommand(
+            Command::new("status")
+                .about("Show key status, plaintext secret status, and remediation hints"),
+        )
         .subcommand(
             Command::new("backup")
                 .about("Copy the current key file to a backup location")
@@ -477,6 +480,10 @@ fn handle_config_key(
                     "key_format": result.key_format,
                     "previous_key_count": result.previous_key_count,
                     "encrypted_field_count": result.encrypted_field_count,
+                    "plaintext_field_count": result.plaintext_field_count,
+                    "plaintext_fields": result.plaintext_fields,
+                    "seal_required": result.seal_required,
+                    "suggested_commands": result.suggested_commands,
                 }),
                 compact,
             )
