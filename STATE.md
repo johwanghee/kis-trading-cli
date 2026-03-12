@@ -23,6 +23,11 @@
   - generic REST executor driven by manifest metadata
   - special TR ID resolvers for the small set of multi-branch order APIs
   - optional hashkey support for POST
+- Added documentation split for different readers:
+  - `README.md` for human quick start and project overview
+  - `docs/LLM_GUIDE.md` for LLM/agent execution rules
+  - `docs/CLI_REFERENCE.md` as a generated full command reference
+  - `tools/render_cli_reference.py` to regenerate the reference from the embedded manifest
 - Verified `config init` writes a template to the OS-specific config directory outside the repository.
 - Loaded user-provided credentials into the external config file only, not into the repository.
 - Verified live calls against demo environment using the new command tree:
@@ -37,6 +42,10 @@
 - Config storage: OS-specific app config directory
 - Token cache storage: OS-specific app cache directory
 - Command surface source: generated manifest from official `MCP` config + `examples_llm`
+- Documentation strategy:
+  - README for people
+  - dedicated LLM guide for task mapping and execution rules
+  - generated command reference for full catalog coverage
 - Current visible command model:
   - `config`
   - `catalog`
@@ -61,6 +70,7 @@
 - `cargo run -- config init`: passed
 - `./target/release/kis-trading-cli auth token`: passed against demo credentials
 - `./target/release/kis-trading-cli domestic-stock inquire-balance ...`: passed against demo credentials
+- `python3 tools/render_cli_reference.py data/kis_api_manifest.json docs/CLI_REFERENCE.md`: passed
 
 ## Risks / Blockers
 
@@ -70,5 +80,6 @@
 ## Next
 
 - 더 많은 live smoke test를 추가한다. 특히 주문 전 조회, 해외주식 조회, 선물옵션 조회를 우선 검증한다.
+- manifest 변경 시 `docs/CLI_REFERENCE.md`를 자동 재생성하는 흐름을 정리한다.
 - help 출력이 길어지는 카테고리에 대해 요약/검색 명령을 추가할지 결정한다.
 - Add release packaging strategy once the command surface stabilizes.

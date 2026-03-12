@@ -35,7 +35,7 @@
 - 사용자는 실전/모의 환경을 명시적으로 전환할 수 있어야 한다.
 - 사용자는 설정 파일 생성, 토큰 발급, 계좌조회 등 대표 기능을 CLI에서 바로 수행할 수 있어야 한다.
 - 사용자는 공식 KIS API 기능이 카테고리별 CLI 서브커맨드로 노출된 도움말을 볼 수 있어야 한다.
-- LLM은 `kis-trading-cli --help`, `kis-trading-cli <category> --help`, `kis-trading-cli <category> <api> --help`만 읽고 사용 가능한 기능과 파라미터를 파악할 수 있어야 한다.
+- LLM은 CLI help만이 아니라 전용 문서(`docs/LLM_GUIDE.md`, `docs/CLI_REFERENCE.md`)와 embedded manifest를 통해 사용 가능한 기능과 파라미터를 빠르게 파악할 수 있어야 한다.
 - 출력은 기본적으로 JSON이어야 한다.
 
 ### Non-Functional
@@ -53,6 +53,8 @@
 - OAuth 토큰 발급 및 캐시
 - 공식 MCP config 기반 API manifest 생성
 - 카테고리별 동적 CLI 도움말/명령 트리
+- 사람용 README와 LLM 전용 운영 문서 분리
+- manifest 기반 전체 CLI reference 생성
 - manifest 기반 REST executor
 - 대표 계좌조회 실호출 검증
 - JSON pretty/compact 출력
@@ -82,6 +84,11 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
 - 공식 저장소 `MCP/Kis Trading MCP/configs/*.json`를 기반으로 API 카탈로그를 생성한다.
 - `examples_llm` Python 소스에서 `http_method`, `tr_id`, 요청 필드, 연속조회 컨텍스트를 추출해 실행 manifest로 합친다.
 - 바이너리는 이 embedded manifest를 읽어 카테고리/기능별 CLI help를 동적으로 구성한다.
+- 별도 문서 계층은 다음처럼 유지한다:
+  - `README.md`: 사람용 소개와 빠른 시작
+  - `docs/LLM_GUIDE.md`: LLM용 호출 규칙과 작업 매핑
+  - `docs/CLI_REFERENCE.md`: manifest에서 생성한 전체 명령 레퍼런스
+  - `data/kis_api_manifest.json`: 기계 판독용 원본
 
 ### Config
 - 기본 위치는 OS별 app config directory를 사용한다.
@@ -107,5 +114,5 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
 ## Open Questions
 
 - 주문 API에서 hashkey가 실제 필수인 엔드포인트 범위를 문서 기준으로 다시 정리할 필요가 있다.
-- 카테고리 도움말이 너무 길어질 경우, LLM 친화성을 해치지 않는 선에서 요약/검색 UX를 추가할지 검토가 필요하다.
+- 카테고리 도움말이 너무 길어지는 문제는 문서 분리로 1차 완화했지만, CLI 자체에도 요약/검색 UX를 추가할지 검토가 필요하다.
 - 배포 방식(Homebrew, GitHub Releases, Windows zip/msi)은 1차 기능 안정화 후 결정한다.
