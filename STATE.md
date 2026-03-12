@@ -38,8 +38,16 @@
   - `config seal` for migrating plaintext config values
   - environment variables remain plaintext overrides
   - local key file path exposed through `config path`
+- Added config key lifecycle commands:
+  - `config key status`
+  - `config key backup`
+  - `config key import`
+  - `config key rotate`
+  - keyring format with active key + previous keys
+  - backward-compatible read support for legacy single-key files
 - Verified `config init` writes a template to the OS-specific config directory outside the repository.
 - Loaded user-provided credentials into the external config file only, not into the repository.
+- Rotated the local default config key into keyring format and verified the migrated config remains usable.
 - Verified live calls against demo environment using the new command tree:
   - `auth token`
   - `domestic-stock inquire-balance`
@@ -64,6 +72,7 @@
   - config stores encrypted values for `app_key`, `app_secret`, `account_no`, `hts_id`
   - `account_product_code`, URLs, and `user_agent` stay plaintext in config
   - environment variables override config without decryption
+  - key rotation upgrades local key handling to keyring format while keeping previous keys available for decryption
 - Current visible command model:
   - `config`
   - `catalog`
@@ -80,7 +89,7 @@
 
 - `cargo fmt -- --check`: passed
 - `cargo check`: passed
-- `cargo test`: passed (`6` tests)
+- `cargo test`: passed (`10` tests)
 - `cargo run -- --help`: passed
 - `cargo run -- domestic-stock --help`: passed
 - `cargo run -- domestic-stock inquire-balance --help`: passed
@@ -90,7 +99,9 @@
 - `./target/release/kis-trading-cli domestic-stock inquire-balance ...`: passed against demo credentials
 - `python3 tools/render_cli_reference.py data/kis_api_manifest.json docs/CLI_REFERENCE.md`: passed
 - `.github/workflows/prebuilt.yml`: YAML syntax validated locally
-- `cargo test`: passed after adding encrypted config storage tests (`8` tests)
+- `./target/release/kis-trading-cli config key rotate --compact`: passed against the local default config
+- `./target/release/kis-trading-cli config key status --compact`: keyring format confirmed
+- `cargo test`: passed after adding key lifecycle tests (`10` tests)
 
 ## Risks / Blockers
 
@@ -98,11 +109,12 @@
 - 일부 주문 API는 복잡한 TR ID/파라미터 조합이 있으므로 실제 주문까지 검증하려면 추가 실계좌/모의계좌 테스트가 필요하다.
 - macOS/Windows 배포의 코드 서명과 notarization은 아직 범위 밖이다.
 - 로컬 key file 기반 암호화는 평문 저장보다 안전하지만, 동일 사용자 권한의 완전한 비밀 저장소를 대체하지는 않는다.
+- key backup은 key snapshot이지 config snapshot이 아니므로, rollback에는 matching config와 함께 관리해야 한다.
 
 ## Next
 
 - 더 많은 live smoke test를 추가한다. 특히 주문 전 조회, 해외주식 조회, 선물옵션 조회를 우선 검증한다.
 - manifest 변경 시 `docs/CLI_REFERENCE.md`를 자동 재생성하는 흐름을 정리한다.
 - help 출력이 길어지는 카테고리에 대해 요약/검색 명령을 추가할지 결정한다.
-- key backup/rotation/export 정책이 필요한지 결정한다.
+- key export가 필요한지, 아니면 backup/import만으로 충분한지 결정한다.
 - tag/release 운영 규칙과 버전 정책을 정리한다.

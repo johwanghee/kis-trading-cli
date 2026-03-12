@@ -91,6 +91,23 @@ config 관련 보조 명령:
 - `kis-trading-cli config init`
 - `kis-trading-cli config set-secret --profile <real|demo> --field <app-key|app-secret|account-no|hts-id> --stdin`
 - `kis-trading-cli config seal`
+- `kis-trading-cli config key status`
+- `kis-trading-cli config key backup [--output <PATH>]`
+- `kis-trading-cli config key rotate [--backup <PATH>]`
+- `kis-trading-cli config key import --input <PATH>`
+
+키 운영 기본 규칙:
+
+1. 먼저 `config key status`
+2. 회전이나 import 전 `config key backup`
+3. 현재 config를 유지한 채 key를 교체하려면 `config key rotate`
+4. 동일한 config 상태를 복구할 때만 `config key import`
+
+설명:
+
+- `rotate`는 새 active key를 만들고 이전 key는 keyring의 previous key로 유지합니다.
+- `import`는 현재 config의 암호문을 실제로 복호화할 수 있는 key만 허용합니다.
+- 회전 전 backup key는 회전 전 config snapshot과 짝이 맞습니다.
 
 ## 권장 탐색 절차
 
@@ -111,6 +128,10 @@ LLM이 처음 이 CLI를 사용할 때 권장 순서는 아래와 같습니다.
 - config 템플릿 생성: `kis-trading-cli config init`
 - 암호화된 비밀값 저장: `kis-trading-cli config set-secret`
 - 기존 평문 비밀값 암호화: `kis-trading-cli config seal`
+- key 상태 확인: `kis-trading-cli config key status`
+- key 백업: `kis-trading-cli config key backup`
+- key 회전: `kis-trading-cli config key rotate`
+- key 복원/이관: `kis-trading-cli config key import`
 
 ### 카탈로그 탐색
 
@@ -189,6 +210,7 @@ kis-trading-cli catalog export --compact
 - raw URL을 직접 조립해서 호출하는 도구라고 가정하지 않습니다.
 - help에 안 보이는 인증/계좌 파라미터를 수동으로 항상 넘길 필요는 없습니다.
 - 환경변수까지 암호화해서 넘겨야 한다고 가정하지 않습니다.
+- 회전 전 backup key만 있으면 회전 후 current config도 바로 읽을 수 있다고 가정하지 않습니다.
 - 모든 API가 실전/모의에서 동일 TR ID를 쓰는 것은 아닙니다.
 - 주문 API 일부는 환경/입력에 따라 별도 TR ID resolver를 사용합니다.
 

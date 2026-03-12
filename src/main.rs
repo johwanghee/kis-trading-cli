@@ -135,6 +135,7 @@ fn config_command() -> Command {
             ),
         )
         .subcommand(Command::new("path").about("Show config, cache, and key paths"))
+        .subcommand(key_command())
         .subcommand(
             Command::new("set-secret")
                 .about("Encrypt and store a secret in config")
@@ -175,6 +176,69 @@ fn config_command() -> Command {
                         .long("profile")
                         .value_parser(["real", "demo"])
                         .help("Limit encryption to one config profile"),
+                ),
+        )
+}
+
+fn key_command() -> Command {
+    Command::new("key")
+        .about("Manage config encryption keys")
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(Command::new("status").about("Show key file status for the current config"))
+        .subcommand(
+            Command::new("backup")
+                .about("Copy the current key file to a backup location")
+                .arg(
+                    Arg::new("output")
+                        .long("output")
+                        .value_name("PATH")
+                        .help("Backup destination path; defaults to a timestamped file"),
+                )
+                .arg(
+                    Arg::new("force")
+                        .long("force")
+                        .action(ArgAction::SetTrue)
+                        .help("Overwrite the backup destination if it already exists"),
+                ),
+        )
+        .subcommand(
+            Command::new("import")
+                .about("Import a key file after validating it against the current config")
+                .arg(
+                    Arg::new("input")
+                        .long("input")
+                        .required(true)
+                        .value_name("PATH")
+                        .help("Path to the key backup or key file to import"),
+                )
+                .arg(
+                    Arg::new("backup")
+                        .long("backup")
+                        .value_name("PATH")
+                        .help("Backup path for the current local key before import"),
+                )
+                .arg(
+                    Arg::new("force")
+                        .long("force")
+                        .action(ArgAction::SetTrue)
+                        .help("Overwrite the backup destination if it already exists"),
+                ),
+        )
+        .subcommand(
+            Command::new("rotate")
+                .about("Create a new active key, keep previous keys, and re-encrypt config secrets")
+                .arg(
+                    Arg::new("backup")
+                        .long("backup")
+                        .value_name("PATH")
+                        .help("Backup path for the current key before rotation"),
+                )
+                .arg(
+                    Arg::new("force")
+                        .long("force")
+                        .action(ArgAction::SetTrue)
+                        .help("Overwrite the backup destination if it already exists"),
                 ),
         )
 }
@@ -309,6 +373,7 @@ fn handle_config(matches: &ArgMatches, config_override: Option<&str>, compact: b
                 compact,
             )
         }
+        Some(("key", key_matches)) => handle_config_key(key_matches, config_override, compact),
         Some(("set-secret", set_matches)) => {
             let environment = config_environment_arg(set_matches, "profile")?;
             let field = secret_field_arg(set_matches, "field")?;
@@ -342,6 +407,81 @@ fn handle_config(matches: &ArgMatches, config_override: Option<&str>, compact: b
             )
         }
         _ => bail!("unsupported config subcommand"),
+    }
+}
+
+fn handle_config_key(
+    matches: &ArgMatches,
+    config_override: Option<&str>,
+    compact: bool,
+) -> Result<()> {
+    match matches.subcommand() {
+        Some(("status", _)) => {
+            let result = config::key_status(config_override.map(Path::new))?;
+            print_json(
+                &serde_json::json!({
+                    "key_path": result.key_path,
+                    "key_exists": result.key_exists,
+                    "key_format": result.key_format,
+                    "previous_key_count": result.previous_key_count,
+                    "encrypted_field_count": result.encrypted_field_count,
+                }),
+                compact,
+            )
+        }
+        Some(("backup", backup_matches)) => {
+            let output = path_arg(backup_matches, "output");
+            let result = config::backup_key(
+                config_override.map(Path::new),
+                output.as_deref(),
+                backup_matches.get_flag("force"),
+            )?;
+            print_json(
+                &serde_json::json!({
+                    "key_path": result.key_path,
+                    "backup_path": result.backup_path,
+                }),
+                compact,
+            )
+        }
+        Some(("import", import_matches)) => {
+            let input = required_path_arg(import_matches, "input")?;
+            let backup = path_arg(import_matches, "backup");
+            let result = config::import_key(
+                config_override.map(Path::new),
+                &input,
+                backup.as_deref(),
+                import_matches.get_flag("force"),
+            )?;
+            print_json(
+                &serde_json::json!({
+                    "key_path": result.key_path,
+                    "backup_path": result.backup_path,
+                    "imported_format": result.imported_format,
+                    "previous_key_count": result.previous_key_count,
+                    "encrypted_field_count": result.encrypted_field_count,
+                }),
+                compact,
+            )
+        }
+        Some(("rotate", rotate_matches)) => {
+            let backup = path_arg(rotate_matches, "backup");
+            let result = config::rotate_key(
+                config_override.map(Path::new),
+                backup.as_deref(),
+                rotate_matches.get_flag("force"),
+            )?;
+            print_json(
+                &serde_json::json!({
+                    "key_path": result.key_path,
+                    "backup_path": result.backup_path,
+                    "rotated_fields": result.rotated_fields,
+                    "previous_key_count": result.previous_key_count,
+                }),
+                compact,
+            )
+        }
+        _ => bail!("unsupported config key subcommand"),
     }
 }
 
@@ -404,6 +544,16 @@ fn secret_input(matches: &ArgMatches) -> Result<String> {
     }
 
     bail!("provide `--value` or `--stdin`")
+}
+
+fn path_arg(matches: &ArgMatches, name: &str) -> Option<std::path::PathBuf> {
+    matches
+        .get_one::<String>(name)
+        .map(std::path::PathBuf::from)
+}
+
+fn required_path_arg(matches: &ArgMatches, name: &str) -> Result<std::path::PathBuf> {
+    path_arg(matches, name).ok_or_else(|| anyhow!("missing `{name}` argument"))
 }
 
 fn handle_catalog(manifest: &ApiManifest, matches: &ArgMatches, compact: bool) -> Result<()> {

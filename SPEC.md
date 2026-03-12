@@ -57,6 +57,7 @@
 - manifest 기반 전체 CLI reference 생성
 - GitHub Actions 기반 3개 OS prebuilt binary 빌드와 release asset 업로드
 - config 비밀값 암복호화 저장과 plaintext-to-encrypted migration command
+- key backup/import/rotation command
 - manifest 기반 REST executor
 - 대표 계좌조회 실호출 검증
 - JSON pretty/compact 출력
@@ -116,6 +117,8 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
 ### Secret Storage
 - config 비밀값은 `enc:kis:v1:` prefix의 암호문 문자열로 저장한다.
 - 암호화 키는 OS 전용 앱 디렉터리에 저장하며, custom config path를 쓰면 그 config 파일 옆 key file을 사용한다.
+- key file은 active key와 previous keys를 포함하는 keyring format을 지원하고, 기존 single-key format도 읽을 수 있어야 한다.
+- key backup, import, rotation은 CLI 명령으로 노출되어 LLM이 help만으로 운영 절차를 따를 수 있어야 한다.
 - 같은 값이 환경변수와 config에 동시에 있으면 환경변수가 우선한다.
 - 이 구조는 주로 평문 노출과 실수로 인한 유출을 줄이기 위한 것이며, 동일 사용자 권한의 완전한 격리는 범위 밖이다.
 
