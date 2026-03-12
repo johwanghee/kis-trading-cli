@@ -137,6 +137,7 @@
 - `./install.sh --allow-downgrade` with local mock release metadata/assets: downgrade install confirmed
 - `.github/workflows/prebuilt.yml`: release checksum manifest step added
 - `.github/workflows/prebuilt.yml`: updated to `macos-15-intel`, `macos-15`, `actions/checkout@v5`, `actions/upload-artifact@v6`, `actions/download-artifact@v7`
+- `.github/workflows/prebuilt.yml`: `gh release` now uses explicit `GH_REPO` / `--repo` so the release job works without repository checkout
 
 ## Risks / Blockers
 
