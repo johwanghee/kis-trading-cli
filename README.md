@@ -47,16 +47,31 @@ curl -fsSL https://raw.githubusercontent.com/johwanghee/kis-trading-cli/main/ins
 - 최신 GitHub Release 확인
 - 대응되는 release asset 다운로드
 - 가능하면 `sha256sums.txt`로 checksum 검증
+- 이미 설치되어 있으면 버전 비교 후 자동 업데이트 또는 no-op
 - 기본 설치 경로 `~/.local/bin`
 
 이 방식은 GitHub Release가 실제로 발행되어 있어야 동작합니다.
 Release가 아직 없으면 아래 수동 설치 흐름을 사용하면 됩니다.
+
+업데이트 정책:
+
+- 스크립트를 다시 실행하면 설치 또는 업데이트를 자동으로 수행
+- 이미 같은 버전이면 다운로드 없이 종료
+- 더 낮은 버전을 설치하려면 `--allow-downgrade` 또는 `--force`
+- 설치 계획만 보고 싶으면 `--check`
 
 버전 고정이나 경로 변경도 가능합니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johwanghee/kis-trading-cli/main/install.sh | \
   bash -s -- --version v1.0.1 --install-dir ~/.local/bin
+```
+
+설치 계획 확인:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johwanghee/kis-trading-cli/main/install.sh | \
+  bash -s -- --check
 ```
 
 수동 설치가 필요하면 GitHub Releases 또는 GitHub Actions artifacts에서 OS별 prebuilt 바이너리를

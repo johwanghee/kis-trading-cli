@@ -40,6 +40,8 @@
   - root `install.sh` supports `curl | bash`
   - detects OS/architecture, resolves GitHub Release, and downloads the matching asset
   - verifies `sha256sums.txt` when available
+  - re-running the script now performs install/update/no-op based on the installed binary version
+  - `--check` emits a JSON install plan, and `--force` / `--allow-downgrade` control reinstall or downgrade behavior
 - Added encrypted config secret storage:
   - `config set-secret` for encrypted writes
   - `config seal` for migrating plaintext config values
@@ -131,6 +133,8 @@
 - `./install.sh --help`: passed
 - `./install.sh --dry-run`: public repo currently returns a clear "no GitHub Release may be published yet" error
 - `./install.sh` with local mock release metadata/assets: passed through download, checksum verification, extraction, and install
+- `./install.sh --check` with local mock release metadata/assets: confirmed `install`, `noop`, `update`, and `downgrade_blocked` actions
+- `./install.sh --allow-downgrade` with local mock release metadata/assets: downgrade install confirmed
 - `.github/workflows/prebuilt.yml`: release checksum manifest step added
 - `.github/workflows/prebuilt.yml`: updated to `macos-15-intel`, `macos-15`, `actions/checkout@v5`, `actions/upload-artifact@v6`, `actions/download-artifact@v7`
 

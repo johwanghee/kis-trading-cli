@@ -20,6 +20,13 @@ curl -fsSL https://raw.githubusercontent.com/johwanghee/kis-trading-cli/main/ins
 
 이 스크립트는 GitHub Release를 조회해 현재 OS/아키텍처에 맞는 prebuilt 바이너리를 설치합니다.
 GitHub Release가 아직 발행되지 않았다면 수동 binary 다운로드로 fallback 합니다.
+스크립트를 다시 실행하면 현재 설치 버전과 target release를 비교해 자동 업데이트하거나, 이미 최신이면 no-op로 끝납니다.
+
+설치 스크립트 보조 옵션:
+
+- `--check`: install/update/no-op 계획을 JSON으로 출력
+- `--force`: 같은 버전 재설치 허용
+- `--allow-downgrade`: 더 낮은 버전 설치 허용
 
 ## 명령 문법
 
