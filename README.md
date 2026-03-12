@@ -67,6 +67,7 @@ config 비밀값 암호화에 쓰는 로컬 키 파일도 함께 사용됩니다
 - 비밀값은 `config set-secret`으로 넣어 config 파일에 암호문으로 저장
 - 이미 config에 평문이 있다면 `config seal`로 일괄 암호화
 - 환경변수는 자동화/CI 용도로 평문 override 유지
+- 키 파일 운영은 `config key ...` 명령으로 처리
 
 config 파일에서 직접 채워도 되는 값:
 
@@ -103,6 +104,28 @@ kis-trading-cli config set-secret --profile real --field hts-id --stdin
 ```bash
 kis-trading-cli config seal
 ```
+
+키 상태/백업/회전/복원:
+
+```bash
+kis-trading-cli config key status
+kis-trading-cli config key backup
+kis-trading-cli config key rotate
+kis-trading-cli config key import --input /path/to/config.key.backup
+```
+
+권장 순서:
+
+1. `config key status`로 현재 key 상태 확인
+2. 위험 작업 전 `config key backup`
+3. 정기 교체가 필요하면 `config key rotate`
+4. 다른 머신이나 같은 상태의 config를 복구할 때만 `config key import`
+
+주의:
+
+- `config key rotate`는 현재 key를 백업한 뒤 새 active key를 만들고 config 비밀값을 재암호화합니다.
+- rotate 후 생성되는 backup은 "회전 전 config 상태"와 짝이 맞는 key입니다.
+- `config key import`는 현재 config를 실제로 복호화할 수 있는 key만 받아들입니다.
 
 환경변수 override도 지원합니다.
 
@@ -202,6 +225,7 @@ cargo build --release
 - 공식 저장소와 포털 문서를 우선 기준으로 사용합니다.
 - 비밀정보와 토큰 캐시는 저장소 안이 아니라 OS 전용 디렉터리에 둡니다.
 - config 파일의 민감값은 로컬 키 파일로 암호화 저장하고, 환경변수는 평문 override로 유지합니다.
+- key rotation은 keyring 방식으로 처리해 이전 key를 함께 보관하며, config는 새 active key로 다시 암호화합니다.
 - 출력은 JSON 우선으로 유지해 `jq`, PowerShell, 다른 에이전트에서 조합하기 쉽게 합니다.
 - TLS는 `reqwest` + `rustls` 기반으로 구성합니다.
 
