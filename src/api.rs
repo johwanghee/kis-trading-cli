@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 
 use crate::cli::Environment;
 use crate::config::{AppPaths, ResolvedProfile};
+use crate::errors::KisApiError;
 
 const KIS_TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
@@ -138,9 +139,13 @@ impl KisClient {
             .text()
             .context("failed to read websocket approval response body")?;
         if !status.is_success() {
-            return Err(anyhow!(
-                "KIS websocket approval HTTP error {status}: {text}"
-            ));
+            return Err(KisApiError::from_http_response(
+                "websocket_approval",
+                "/oauth2/Approval",
+                status,
+                &text,
+            )
+            .into());
         }
 
         let parsed: ApprovalResponse =
@@ -219,7 +224,13 @@ impl KisClient {
             .text()
             .context("failed to read OAuth response body")?;
         if !status.is_success() {
-            return Err(anyhow!("KIS token HTTP error {status}: {text}"));
+            return Err(KisApiError::from_http_response(
+                "oauth_token",
+                "/oauth2/tokenP",
+                status,
+                &text,
+            )
+            .into());
         }
 
         let parsed: TokenResponse =
@@ -289,7 +300,9 @@ impl KisClient {
             .text()
             .context("failed to read hashkey response body")?;
         if !status.is_success() {
-            return Err(anyhow!("KIS hashkey HTTP error {status}: {text}"));
+            return Err(
+                KisApiError::from_http_response("hashkey", "/uapi/hashkey", status, &text).into(),
+            );
         }
 
         let parsed: HashKeyResponse =
@@ -440,7 +453,7 @@ fn parse_api_response(
         .with_context(|| format!("failed to read response body for {path}"))?;
 
     if !status.is_success() {
-        return Err(anyhow!("KIS HTTP error {status} for {path}: {text}"));
+        return Err(KisApiError::from_http_response("rest_request", path, status, &text).into());
     }
 
     let value: Value =
@@ -448,15 +461,13 @@ fn parse_api_response(
 
     if let Some(rt_cd) = value.get("rt_cd").and_then(Value::as_str) {
         if rt_cd != "0" {
-            let msg_cd = value
-                .get("msg_cd")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown");
-            let msg1 = value
-                .get("msg1")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown");
-            return Err(anyhow!("KIS API error {msg_cd} for {path}: {msg1}"));
+            return Err(KisApiError::from_response_value(
+                "rest_request",
+                path,
+                Some(status.as_u16()),
+                &value,
+            )
+            .into());
         }
     }
 

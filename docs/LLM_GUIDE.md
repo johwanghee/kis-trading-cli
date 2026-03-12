@@ -176,6 +176,26 @@ LLM이 처음 이 CLI를 사용할 때 권장 순서는 아래와 같습니다.
 - 정상 응답 본문은 JSON입니다.
 - `--compact`를 붙이면 한 줄 JSON이 됩니다.
 - KIS 응답에서 `rt_cd != "0"`이면 실패로 취급해야 합니다.
+- 실패 stderr는 JSON envelope로 출력됩니다.
+
+오류 분류 규칙:
+
+- `api_error`
+  - KIS가 HTTP 오류를 반환했거나 `rt_cd != "0"`을 반환한 경우
+- `program_error`
+  - CLI 입력 오류, config/key 문제, 네트워크 실패, 파일 I/O 문제, 내부 처리 실패
+
+LLM이 우선 읽을 필드:
+
+- `error_type`
+- `message`
+- `llm_hint.summary`
+- `llm_hint.retryable`
+- `llm_hint.next_action`
+- `api_error.msg_cd`
+- `api_error.msg1`
+- `program_error.category`
+- `causes`
 
 ## 실행 예시
 
