@@ -34,6 +34,8 @@
   - Linux x86_64 archive
   - Windows x86_64 archive
   - GitHub Release asset upload on `v*` tags
+  - Node 24 compatible `checkout` / artifact actions
+  - `gh release create/upload` based release publishing
 - Added a public install script:
   - root `install.sh` supports `curl | bash`
   - detects OS/architecture, resolves GitHub Release, and downloads the matching asset
@@ -130,6 +132,7 @@
 - `./install.sh --dry-run`: public repo currently returns a clear "no GitHub Release may be published yet" error
 - `./install.sh` with local mock release metadata/assets: passed through download, checksum verification, extraction, and install
 - `.github/workflows/prebuilt.yml`: release checksum manifest step added
+- `.github/workflows/prebuilt.yml`: updated to `macos-15-intel`, `macos-15`, `actions/checkout@v5`, `actions/upload-artifact@v6`, `actions/download-artifact@v7`
 
 ## Risks / Blockers
 

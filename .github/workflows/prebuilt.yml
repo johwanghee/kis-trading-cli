@@ -21,13 +21,13 @@ jobs:
       matrix:
         include:
           - name: macOS x86_64
-            os: macos-13
+            os: macos-15-intel
             archive_name: kis-trading-cli-macos-x86_64.tar.gz
             artifact_stem: kis-trading-cli-macos-x86_64
             binary_path: target/release/kis-trading-cli
             binary_name: kis-trading-cli
           - name: macOS arm64
-            os: macos-14
+            os: macos-15
             archive_name: kis-trading-cli-macos-arm64.tar.gz
             artifact_stem: kis-trading-cli-macos-arm64
             binary_path: target/release/kis-trading-cli
@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -78,7 +78,7 @@ jobs:
           Compress-Archive -Path $staging -DestinationPath "dist/${{ matrix.archive_name }}" -Force
 
       - name: Upload prebuilt artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact_stem }}
           path: dist/${{ matrix.archive_name }}
@@ -94,7 +94,7 @@ jobs:
 
     steps:
       - name: Download packaged artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: kis-trading-cli-*
           path: dist
@@ -106,9 +106,14 @@ jobs:
           sha256sum *.tar.gz *.zip > sha256sums.txt
 
       - name: Publish GitHub release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/sha256sums.txt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" dist/*.tar.gz dist/*.zip dist/sha256sums.txt --clobber
+          else
+            gh release create "${tag}" dist/*.tar.gz dist/*.zip dist/sha256sums.txt \
+              --title "${tag}" \
+              --generate-notes
+          fi
