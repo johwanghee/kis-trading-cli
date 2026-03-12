@@ -233,8 +233,8 @@ kis-trading-cli catalog export --compact
 
 GitHub Actions는 다음 prebuilt 산출물을 만듭니다.
 
-- `macos-13`에서 빌드한 `kis-trading-cli-macos-x86_64.tar.gz`
-- `macos-14`에서 빌드한 `kis-trading-cli-macos-arm64.tar.gz`
+- `macos-15-intel`에서 빌드한 `kis-trading-cli-macos-x86_64.tar.gz`
+- `macos-15`에서 빌드한 `kis-trading-cli-macos-arm64.tar.gz`
 - `ubuntu-22.04`에서 빌드한 `kis-trading-cli-linux-x86_64.tar.gz`
 - `windows-2022`에서 빌드한 `kis-trading-cli-windows-x86_64.zip`
 
