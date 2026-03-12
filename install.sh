@@ -13,6 +13,12 @@ DEFAULT_BINARY_NAME="kis-trading-cli"
 VERSION="${KIS_TRADING_CLI_VERSION:-latest}"
 INSTALL_DIR="${KIS_TRADING_CLI_INSTALL_DIR:-${DEFAULT_INSTALL_DIR}}"
 DRY_RUN=0
+CHECK_ONLY=0
+FORCE=0
+ALLOW_DOWNGRADE=0
+INSTALLED_PATH=""
+INSTALLED_VERSION=""
+INSTALL_ACTION=""
 
 usage() {
   cat <<'EOF'
@@ -25,7 +31,10 @@ Usage:
 Options:
   --version <tag|latest>   Release tag to install. Default: latest
   --install-dir <path>     Destination directory. Default: ~/.local/bin
+  --check                  Print a JSON install/update plan and exit
   --dry-run                Resolve the release asset and print the plan without installing
+  --force                  Reinstall even when the target version is already installed
+  --allow-downgrade        Allow installing a version lower than the currently installed version
   -h, --help               Show this help
 
 Environment:
@@ -54,12 +63,43 @@ json_string_field() {
   sed -n "s/^[[:space:]]*\"${key}\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" | head -n 1
 }
 
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 normalize_version() {
   case "$1" in
     latest) printf '%s\n' "latest" ;;
     v*) printf '%s\n' "$1" ;;
     *) printf 'v%s\n' "$1" ;;
   esac
+}
+
+compare_versions() {
+  local left="${1#v}"
+  local right="${2#v}"
+
+  awk -v left="${left}" -v right="${right}" '
+    function part(value, idx, pieces) {
+      split(value, pieces, ".")
+      return (idx in pieces) ? pieces[idx] + 0 : 0
+    }
+    BEGIN {
+      for (i = 1; i <= 6; i++) {
+        l = part(left, i)
+        r = part(right, i)
+        if (l < r) {
+          print -1
+          exit
+        }
+        if (l > r) {
+          print 1
+          exit
+        }
+      }
+      print 0
+    }
+  '
 }
 
 resolve_release_tag() {
@@ -131,6 +171,150 @@ detect_platform() {
 check_release_asset() {
   curl -fsI -L "${ARCHIVE_URL}" >/dev/null \
     || fail "release asset not found for ${VERSION}: ${ARCHIVE_NAME}"
+}
+
+find_installed_binary() {
+  if [ -x "${INSTALL_DIR}/${BINARY_NAME}" ]; then
+    printf '%s\n' "${INSTALL_DIR}/${BINARY_NAME}"
+    return 0
+  fi
+
+  if command -v "${BINARY_NAME}" >/dev/null 2>&1; then
+    command -v "${BINARY_NAME}"
+    return 0
+  fi
+
+  return 1
+}
+
+read_installed_version() {
+  local binary_path="$1"
+  local raw
+
+  raw="$("${binary_path}" --version 2>/dev/null | awk 'NF { print $NF; exit }')" || return 1
+  [ -n "${raw}" ] || return 1
+  normalize_version "${raw}"
+}
+
+detect_installed_state() {
+  INSTALLED_PATH=""
+  INSTALLED_VERSION=""
+
+  if ! INSTALLED_PATH="$(find_installed_binary)"; then
+    return 0
+  fi
+
+  if INSTALLED_VERSION="$(read_installed_version "${INSTALLED_PATH}")"; then
+    return 0
+  fi
+
+  INSTALLED_VERSION=""
+}
+
+plan_install_action() {
+  if [ -z "${INSTALLED_PATH}" ]; then
+    INSTALL_ACTION="install"
+    return 0
+  fi
+
+  if [ -z "${INSTALLED_VERSION}" ]; then
+    INSTALL_ACTION="reinstall"
+    return 0
+  fi
+
+  local comparison
+  comparison="$(compare_versions "${INSTALLED_VERSION}" "${VERSION}")"
+
+  case "${comparison}" in
+    -1)
+      INSTALL_ACTION="update"
+      ;;
+    0)
+      if [ "${FORCE}" -eq 1 ]; then
+        INSTALL_ACTION="reinstall"
+      else
+        INSTALL_ACTION="noop"
+      fi
+      ;;
+    1)
+      if [ "${FORCE}" -eq 1 ] || [ "${ALLOW_DOWNGRADE}" -eq 1 ]; then
+        INSTALL_ACTION="downgrade"
+      else
+        INSTALL_ACTION="downgrade_blocked"
+      fi
+      ;;
+    *)
+      fail "failed to compare versions: installed=${INSTALLED_VERSION}, target=${VERSION}"
+      ;;
+  esac
+}
+
+emit_check_report() {
+  local installed_path_json="null"
+  local installed_version_json="null"
+  local message update_available needs_install force_json allow_downgrade_json
+
+  if [ -n "${INSTALLED_PATH}" ]; then
+    installed_path_json="\"$(json_escape "${INSTALLED_PATH}")\""
+  fi
+
+  if [ -n "${INSTALLED_VERSION}" ]; then
+    installed_version_json="\"$(json_escape "${INSTALLED_VERSION}")\""
+  fi
+
+  case "${INSTALL_ACTION}" in
+    install)
+      message="Binary is not installed in the target location and will be installed."
+      update_available=true
+      needs_install=true
+      ;;
+    update)
+      message="A newer release is available and will replace the installed binary."
+      update_available=true
+      needs_install=true
+      ;;
+    reinstall)
+      message="The target release will be installed over the existing binary."
+      update_available=false
+      needs_install=true
+      ;;
+    downgrade)
+      message="The requested release is older than the installed binary and will be installed because downgrade is allowed."
+      update_available=false
+      needs_install=true
+      ;;
+    downgrade_blocked)
+      message="The requested release is older than the installed binary. Re-run with --allow-downgrade or --force to install it."
+      update_available=false
+      needs_install=false
+      ;;
+    noop)
+      message="The installed binary already matches the requested release."
+      update_available=false
+      needs_install=false
+      ;;
+    *)
+      message="Unknown install action."
+      update_available=false
+      needs_install=false
+      ;;
+  esac
+
+  if [ "${FORCE}" -eq 1 ]; then
+    force_json=true
+  else
+    force_json=false
+  fi
+
+  if [ "${ALLOW_DOWNGRADE}" -eq 1 ]; then
+    allow_downgrade_json=true
+  else
+    allow_downgrade_json=false
+  fi
+
+  cat <<EOF
+{"ok":true,"binary_name":"$(json_escape "${BINARY_NAME}")","installed_path":${installed_path_json},"installed_version":${installed_version_json},"target_version":"$(json_escape "${VERSION}")","action":"$(json_escape "${INSTALL_ACTION}")","update_available":${update_available},"needs_install":${needs_install},"force":${force_json},"allow_downgrade":${allow_downgrade_json},"install_dir":"$(json_escape "${INSTALL_DIR}")","platform":"$(json_escape "${PLATFORM}")","arch":"$(json_escape "${ARCH}")","archive":"$(json_escape "${ARCHIVE_NAME}")","url":"$(json_escape "${ARCHIVE_URL}")","message":"$(json_escape "${message}")"}
+EOF
 }
 
 sha256_file() {
@@ -235,8 +419,17 @@ parse_args() {
         [ "$#" -gt 0 ] || fail "--install-dir requires a value"
         INSTALL_DIR="$1"
         ;;
+      --check)
+        CHECK_ONLY=1
+        ;;
       --dry-run)
         DRY_RUN=1
+        ;;
+      --force)
+        FORCE=1
+        ;;
+      --allow-downgrade)
+        ALLOW_DOWNGRADE=1
         ;;
       -h|--help)
         usage
@@ -261,12 +454,56 @@ main() {
   resolve_release_tag
   detect_platform
   check_release_asset
+  detect_installed_state
+  plan_install_action
 
-  if [ "${DRY_RUN}" -eq 1 ]; then
-    printf 'version=%s\nplatform=%s\narch=%s\narchive=%s\nurl=%s\ninstall_dir=%s\n' \
-      "${VERSION}" "${PLATFORM}" "${ARCH}" "${ARCHIVE_NAME}" "${ARCHIVE_URL}" "${INSTALL_DIR}"
+  if [ "${CHECK_ONLY}" -eq 1 ]; then
+    emit_check_report
     exit 0
   fi
+
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    printf 'version=%s\nplatform=%s\narch=%s\narchive=%s\nurl=%s\ninstall_dir=%s\naction=%s\ninstalled_path=%s\ninstalled_version=%s\n' \
+      "${VERSION}" \
+      "${PLATFORM}" \
+      "${ARCH}" \
+      "${ARCHIVE_NAME}" \
+      "${ARCHIVE_URL}" \
+      "${INSTALL_DIR}" \
+      "${INSTALL_ACTION}" \
+      "${INSTALLED_PATH:-}" \
+      "${INSTALLED_VERSION:-}"
+    exit 0
+  fi
+
+  case "${INSTALL_ACTION}" in
+    noop)
+      log "${BINARY_NAME} ${VERSION} is already installed at ${INSTALLED_PATH}"
+      exit 0
+      ;;
+    downgrade_blocked)
+      fail "installed version ${INSTALLED_VERSION} is newer than target ${VERSION}; re-run with --allow-downgrade or --force"
+      ;;
+    install)
+      log "installing ${BINARY_NAME} ${VERSION}"
+      ;;
+    update)
+      log "updating ${BINARY_NAME} from ${INSTALLED_VERSION} to ${VERSION}"
+      ;;
+    reinstall)
+      if [ -n "${INSTALLED_VERSION}" ]; then
+        log "reinstalling ${BINARY_NAME} ${INSTALLED_VERSION}"
+      else
+        log "installing over existing ${BINARY_NAME} with unknown version metadata"
+      fi
+      ;;
+    downgrade)
+      log "downgrading ${BINARY_NAME} from ${INSTALLED_VERSION} to ${VERSION}"
+      ;;
+    *)
+      fail "unsupported install action: ${INSTALL_ACTION}"
+      ;;
+  esac
 
   local tmpdir archive_path checksum_path binary_source
   tmpdir="$(mktemp -d)"
