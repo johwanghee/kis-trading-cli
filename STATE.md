@@ -2,7 +2,7 @@
 
 ## Snapshot
 
-- Date: 2026-03-12
+- Date: 2026-04-29
 - Status: manifest-driven CLI implemented
 - Workspace started as an almost-empty git repository.
 - Rust toolchain was not available on PATH at start, then installed via Homebrew for local verification.
@@ -68,6 +68,11 @@
 - Verified live calls against demo environment using the new command tree:
   - `auth token`
   - `domestic-stock inquire-balance`
+- Refreshed the embedded manifest against official `koreainvestment/open-trading-api`
+  commit `33e0e1e65cd1c8c8b639531483ec0b327087bab1`.
+- Confirmed the official REST catalog still exposes `166` APIs across `8` categories.
+- Recorded the only generated catalog change found in this refresh:
+  - `overseas-stock.price-fluct` parameter/request field corrected from `mixn` / `MIXN` to `minx` / `MINX` in the official samples.
 
 ## Active Decisions
 
@@ -129,6 +134,13 @@
 - `./target/release/kis-trading-cli domestic-stock inquire-balance ... --afhr-flpr-yn BAD`: structured `api_error` confirmed
 - `./target/release/kis-trading-cli --config <temp> config key status --compact`: plaintext fields and `seal_required` confirmed
 - `./target/release/kis-trading-cli --config <temp> auth token --compact`: structured `program_error` with `plaintext_secret_detected` and remediation commands confirmed
+- `python3 tools/generate_manifest.py <official-open-trading-api> data/kis_api_manifest.json`: passed against official commit `33e0e1e65cd1c8c8b639531483ec0b327087bab1`
+- `python3 tools/render_cli_reference.py data/kis_api_manifest.json docs/CLI_REFERENCE.md`: passed after manifest refresh
+- `jq empty data/kis_api_manifest.json`: passed after manifest refresh
+- `cargo fmt -- --check`: passed after manifest refresh
+- `cargo test`: passed after manifest refresh (`15` tests)
+- `cargo build`: passed after manifest refresh
+- `cargo run -- overseas-stock price-fluct --help`: confirmed refreshed `--minx <MINX>` flag
 - `bash -n ./install.sh`: passed
 - `./install.sh --help`: passed
 - `./install.sh --dry-run`: public repo currently returns a clear "no GitHub Release may be published yet" error

@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-03-12T08:54:37.847329+00:00",
+  "generated_at": "2026-04-28T15:04:03.292707+00:00",
   "source_repo": "https://github.com/koreainvestment/open-trading-api",
-  "source_commit": "2eb8aa1408fdfa08bcef033576815817269c4e39",
+  "source_commit": "33e0e1e65cd1c8c8b639531483ec0b327087bab1",
   "category_count": 8,
   "api_count": 166,
   "categories": [
@@ -21031,8 +21031,8 @@
           "auto_source": null
         },
         {
-          "name": "mixn",
-          "cli_name": "mixn",
+          "name": "minx",
+          "cli_name": "minx",
           "type": "str",
           "required": true,
           "default_value": null,
@@ -21133,8 +21133,8 @@
           "literal": null
         },
         {
-          "request_name": "MIXN",
-          "source_param": "mixn",
+          "request_name": "MINX",
+          "source_param": "minx",
           "literal": null
         },
         {

@@ -3,7 +3,7 @@
 > Generated from `data/kis_api_manifest.json`. Edit the manifest or generator, not this file.
 
 - Source repo: `https://github.com/koreainvestment/open-trading-api`
-- Source commit: `2eb8aa1408fdfa08bcef033576815817269c4e39`
+- Source commit: `33e0e1e65cd1c8c8b639531483ec0b327087bab1`
 - Categories: `8`
 - APIs: `166`
 
