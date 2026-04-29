@@ -1,4 +1,4 @@
-# AGENTS.md
+# CLAUDE.md
 
 ## Goal
 - Build a cross-platform Rust CLI for Korea Investment & Securities Open API.
@@ -29,3 +29,14 @@
 ## Verification
 - Preferred checks: `cargo fmt`, `cargo test`, `cargo build`.
 - If Rust toolchain is unavailable, note the exact blocker in `STATE.md` and the final response.
+
+## Release Process
+- GitHub Actions (`.github/workflows/prebuilt.yml`) builds binaries on every push to `main` and on `v*` tag pushes.
+- A GitHub Release (with prebuilt archives and `sha256sums.txt`) is only published when a `v*` tag is pushed.
+- Steps to cut a release:
+  1. Bump `version` in `Cargo.toml` (e.g. `1.0.3` → `1.0.4`).
+  2. `cargo update` — Cargo.lock picks up the new version automatically.
+  3. `git add Cargo.toml Cargo.lock && git commit -m "chore: X.Y.Z 버전 반영"`
+  4. `git tag vX.Y.Z && git push origin main --tags`
+- After the tag push, GitHub Actions creates the release automatically (~5–10 min).
+- Do not push a tag without first updating `Cargo.toml`; version and tag must match.
