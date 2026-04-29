@@ -7,8 +7,8 @@
 
 ## Research Snapshot
 
-기준 시점: 2026-03-12  
-참조 저장소: `koreainvestment/open-trading-api` `main` 브랜치 (`2eb8aa1408fdfa08bcef033576815817269c4e39` 확인)
+기준 시점: 2026-04-29
+참조 저장소: `koreainvestment/open-trading-api` `main` 브랜치 (`33e0e1e65cd1c8c8b639531483ec0b327087bab1` 확인)
 
 확인한 주요 공식 자료:
 - 저장소 `README.md`
@@ -35,6 +35,7 @@
 - 사용자는 실전/모의 환경을 명시적으로 전환할 수 있어야 한다.
 - 사용자는 설정 파일 생성, 토큰 발급, 계좌조회 등 대표 기능을 CLI에서 바로 수행할 수 있어야 한다.
 - 사용자는 공식 KIS API 기능이 카테고리별 CLI 서브커맨드로 노출된 도움말을 볼 수 있어야 한다.
+- 사용자는 저수준 웹소켓 TR ID와 TR key를 지정해 실시간 스트림을 구독할 수 있어야 한다.
 - LLM은 CLI help만이 아니라 전용 문서(`docs/LLM_GUIDE.md`, `docs/CLI_REFERENCE.md`)와 embedded manifest를 통해 사용 가능한 기능과 파라미터를 빠르게 파악할 수 있어야 한다.
 - 출력은 기본적으로 JSON이어야 한다.
 
@@ -60,11 +61,13 @@
 - key backup/import/rotation command
 - API 오류와 프로그램 오류를 구분하는 구조화된 JSON 오류 출력
 - manifest 기반 REST executor
+- `tokio` + `tokio-tungstenite` 기반 저수준 웹소켓 stream executor
 - 대표 계좌조회 실호출 검증
 - JSON pretty/compact 출력
 
 ### Excluded
-- 웹소켓 스트리밍
+- 공식 실시간 API별 고수준 웹소켓 command catalog
+- 실시간 payload 필드별 schema/복호화 자동 매핑
 - 자동 재시도, rate-limit 백오프 고도화
 - 설치 패키징(Homebrew, Scoop, deb/rpm 등)
 - 코드 서명 및 notarization
@@ -78,9 +81,11 @@ kis-trading-cli config init
 kis-trading-cli config path
 kis-trading-cli catalog summary
 kis-trading-cli auth token
+kis-trading-cli auth ws-token
 kis-trading-cli domestic-stock --help
 kis-trading-cli domestic-stock inquire-price --fid-cond-mrkt-div-code J --fid-input-iscd 005930
 kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 --unpr-dvsn 01 --fund-sttl-icld-yn N --fncg-amt-auto-rdpt-yn N --prcs-dvsn 00
+kis-trading-cli ws subscribe --tr-id H0STCNT0 --tr-key 005930 --limit 5
 ```
 
 ## Architecture
@@ -135,6 +140,15 @@ kis-trading-cli domestic-stock inquire-balance --afhr-flpr-yn N --inqr-dvsn 01 -
 - 런타임 오류는 `api_error`와 `program_error`로 나눈 JSON envelope를 stderr에 출력한다.
 - POST 요청은 필요 시 hashkey를 선발급받아 헤더에 넣을 수 있어야 한다.
 - 연속조회 API는 `tr_cont`와 `CTX_AREA_*` 컨텍스트를 manifest 정보로 자동 처리한다.
+
+### WebSocket Layer
+- 웹소켓은 REST executor와 별도의 stream executor로 처리한다.
+- `auth ws-token` / `/oauth2/Approval`로 approval key를 발급받은 뒤 `profiles.<env>.websocket_url`에 `/tryitout`을 붙여 연결한다.
+- 저수준 MVP 명령은 `ws subscribe --tr-id <TR_ID> --tr-key <TR_KEY>`이다.
+- 구독 메시지는 공식 샘플의 `header.approval_key`, `header.custtype=P`, `header.tr_type`, `header.content-type=utf-8`, `body.input.tr_id`, `body.input.tr_key` 구조를 따른다.
+- 웹소켓 출력은 무한 스트림에 맞춰 NDJSON으로 한 이벤트씩 stdout에 쓴다.
+- `--limit`과 `--duration`은 CLI에서 테스트/자동화를 쉽게 하기 위한 종료 조건이다.
+- 실시간 payload의 `|`/`^` 구분 필드 해석과 암호화 응답 복호화는 다음 단계의 웹소켓 catalog 작업으로 분리한다.
 
 ### TR ID Resolution
 - 대부분 API는 manifest에 추출된 상수 또는 `real`/`demo` TR ID로 처리한다.

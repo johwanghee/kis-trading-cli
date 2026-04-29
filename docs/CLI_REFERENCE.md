@@ -11,6 +11,7 @@
 
 - `config`: local config file path/template management
 - `catalog`: embedded manifest summary/export
+- `ws`: low-level websocket stream subscription
 - `auth`: 한국투자증권의 auth OPEN API를 활용합니다. (2 APIs)
 - `domestic-bond`: 한국투자증권의 장내채권 OPEN API를 활용합니다. (14 APIs)
 - `domestic-futureoption`: 한국투자증권의 국내선물옵션 OPEN API를 활용합니다. (20 APIs)
@@ -25,6 +26,14 @@
 - `--env <demo|real>`
 - `--config <PATH>`
 - `--compact`
+
+## `ws`
+
+Low-level websocket stream commands. Websocket output is newline-delimited JSON.
+
+| Command | 설명 |
+| --- | --- |
+| `subscribe --tr-id <TR_ID> --tr-key <TR_KEY>` | Open a websocket subscription and print received events as NDJSON. Supports `--tr-type`, `--limit`, and `--duration`. |
 
 ## `auth`
 

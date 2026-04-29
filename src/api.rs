@@ -117,6 +117,15 @@ impl KisClient {
     }
 
     pub fn websocket_approval_key(&self) -> Result<Value> {
+        let approval_key = self.websocket_approval_key_string()?;
+
+        Ok(json!({
+            "environment": self.profile.environment,
+            "approval_key": approval_key,
+        }))
+    }
+
+    pub fn websocket_approval_key_string(&self) -> Result<String> {
         let payload = json!({
             "grant_type": "client_credentials",
             "appkey": self.profile.app_key,
@@ -151,10 +160,7 @@ impl KisClient {
         let parsed: ApprovalResponse =
             serde_json::from_str(&text).context("failed to parse websocket approval response")?;
 
-        Ok(json!({
-            "environment": self.profile.environment,
-            "approval_key": parsed.approval_key,
-        }))
+        Ok(parsed.approval_key)
     }
 
     pub fn send_request(&self, request: ApiRequest) -> Result<ApiCallResponse> {

@@ -48,6 +48,7 @@ def render_reference(manifest: dict) -> str:
     lines.append("")
     lines.append("- `config`: local config file path/template management")
     lines.append("- `catalog`: embedded manifest summary/export")
+    lines.append("- `ws`: low-level websocket stream subscription")
     for category in manifest["categories"]:
         lines.append(f"- `{category['id']}`: {normalize_text(category['introduce'])} ({category['api_count']} APIs)")
     lines.append("")
@@ -56,6 +57,14 @@ def render_reference(manifest: dict) -> str:
     lines.append("- `--env <demo|real>`")
     lines.append("- `--config <PATH>`")
     lines.append("- `--compact`")
+    lines.append("")
+    lines.append("## `ws`")
+    lines.append("")
+    lines.append("Low-level websocket stream commands. Websocket output is newline-delimited JSON.")
+    lines.append("")
+    lines.append("| Command | 설명 |")
+    lines.append("| --- | --- |")
+    lines.append("| `subscribe --tr-id <TR_ID> --tr-key <TR_KEY>` | Open a websocket subscription and print received events as NDJSON. Supports `--tr-type`, `--limit`, and `--duration`. |")
     lines.append("")
 
     for category in manifest["categories"]:

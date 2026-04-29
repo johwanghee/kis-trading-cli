@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod errors;
 mod manifest;
+mod ws;
 
 use std::path::Path;
 use std::{io, io::Read};
@@ -23,10 +24,11 @@ use crate::manifest::{
     display_command_name, load_manifest, visible_params, ApiEntry, ApiManifest, ApiParam, TrIdSpec,
 };
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let compact = requested_compact_output();
 
-    match run() {
+    match run().await {
         Ok(()) => {}
         Err(RunFailure::Clap(error))
             if matches!(
@@ -72,7 +74,7 @@ impl From<anyhow::Error> for RunFailure {
     }
 }
 
-fn run() -> std::result::Result<(), RunFailure> {
+async fn run() -> std::result::Result<(), RunFailure> {
     let manifest = load_manifest()?;
     let matches = build_cli(manifest).try_get_matches()?;
     let env = environment_from_matches(&matches)?;
@@ -82,6 +84,7 @@ fn run() -> std::result::Result<(), RunFailure> {
     match matches.subcommand() {
         Some(("config", sub_matches)) => Ok(handle_config(sub_matches, config_path, compact)?),
         Some(("catalog", sub_matches)) => Ok(handle_catalog(manifest, sub_matches, compact)?),
+        Some(("ws", sub_matches)) => Ok(handle_ws(sub_matches, config_path, env, compact).await?),
         Some((category_name, category_matches)) => {
             let category = manifest
                 .category_by_name(category_name)
@@ -119,7 +122,8 @@ fn build_cli(manifest: &ApiManifest) -> Command {
         .arg(global_config_arg())
         .arg(global_compact_arg())
         .subcommand(config_command())
-        .subcommand(catalog_command());
+        .subcommand(catalog_command())
+        .subcommand(ws_command());
 
     for category in &manifest.categories {
         let mut category_command = Command::new(leak_string(category.id.clone()))
@@ -305,6 +309,54 @@ fn catalog_command() -> Command {
         .arg_required_else_help(true)
         .subcommand(Command::new("summary").about("Show category and API counts"))
         .subcommand(Command::new("export").about("Print the embedded manifest as JSON"))
+}
+
+fn ws_command() -> Command {
+    Command::new("ws")
+        .about("Subscribe to KIS websocket streams")
+        .long_about(
+            "Subscribe to KIS websocket streams. Output is newline-delimited JSON because websocket streams are long-running.",
+        )
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(
+            Command::new("subscribe")
+                .about("Open a websocket subscription and print received events as NDJSON")
+                .arg(
+                    Arg::new("tr_id")
+                        .long("tr-id")
+                        .required(true)
+                        .value_name("TR_ID")
+                        .help("Websocket TR ID to subscribe to, for example H0STCNT0"),
+                )
+                .arg(
+                    Arg::new("tr_key")
+                        .long("tr-key")
+                        .required(true)
+                        .value_name("TR_KEY")
+                        .help("Subscription key such as stock code, symbol, or HTS ID depending on TR ID"),
+                )
+                .arg(
+                    Arg::new("tr_type")
+                        .long("tr-type")
+                        .default_value("1")
+                        .value_parser(["1", "2"])
+                        .help("KIS websocket transaction type: 1 subscribes, 2 unsubscribes"),
+                )
+                .arg(
+                    Arg::new("limit")
+                        .long("limit")
+                        .value_name("N")
+                        .value_parser(clap::value_parser!(usize))
+                        .help("Stop after receiving N data messages; system ping/pong messages do not count"),
+                )
+                .arg(
+                    Arg::new("duration")
+                        .long("duration")
+                        .value_name("DURATION")
+                        .help("Stop after a duration such as 10, 10s, 2m, or 500ms"),
+                ),
+        )
 }
 
 fn api_arg(param: &ApiParam) -> Arg {
@@ -631,10 +683,53 @@ fn handle_catalog(manifest: &ApiManifest, matches: &ArgMatches, compact: bool) -
     }
 }
 
+async fn handle_ws(
+    matches: &ArgMatches,
+    config_path: Option<&str>,
+    env: Environment,
+    compact: bool,
+) -> Result<()> {
+    match matches.subcommand() {
+        Some(("subscribe", subscribe_matches)) => {
+            let client = build_client(config_path.map(Path::new), env)?;
+            let websocket_url = client
+                .profile()
+                .websocket_url
+                .clone()
+                .ok_or_else(|| anyhow!("missing websocket_url for `{env}` profile"))?;
+            let approval_key = client.websocket_approval_key_string()?;
+            let duration = subscribe_matches
+                .get_one::<String>("duration")
+                .map(|value| ws::parse_duration(value))
+                .transpose()?;
+
+            ws::subscribe(ws::WsSubscribeRequest {
+                websocket_url,
+                approval_key,
+                tr_id: required_string_arg(subscribe_matches, "tr_id")?,
+                tr_key: required_string_arg(subscribe_matches, "tr_key")?,
+                tr_type: required_string_arg(subscribe_matches, "tr_type")?,
+                limit: subscribe_matches.get_one::<usize>("limit").copied(),
+                duration,
+                compact,
+            })
+            .await
+        }
+        _ => bail!("unsupported ws subcommand"),
+    }
+}
+
 fn build_client(config_path: Option<&Path>, env: Environment) -> Result<KisClient> {
     let paths = config::app_paths(config_path)?;
     let profile = config::load_profile(config_path, env)?;
     KisClient::new(profile, paths)
+}
+
+fn required_string_arg(matches: &ArgMatches, name: &str) -> Result<String> {
+    matches
+        .get_one::<String>(name)
+        .cloned()
+        .ok_or_else(|| anyhow!("missing `{name}` argument"))
 }
 
 fn execute_manifest_api(

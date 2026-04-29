@@ -73,6 +73,10 @@
 - Confirmed the official REST catalog still exposes `166` APIs across `8` categories.
 - Recorded the only generated catalog change found in this refresh:
   - `overseas-stock.price-fluct` parameter/request field corrected from `mixn` / `MIXN` to `minx` / `MINX` in the official samples.
+- Added a low-level websocket stream command using `tokio` + `tokio-tungstenite`:
+  - `ws subscribe --tr-id <TR_ID> --tr-key <TR_KEY>`
+  - emits newline-delimited JSON events to stdout
+  - supports `--limit` and `--duration` stop conditions for automation
 
 ## Active Decisions
 
@@ -101,10 +105,15 @@
   - stderr uses structured JSON for runtime failures
   - exit code `2` means `program_error`
   - exit code `3` means `api_error`
+- Websocket strategy:
+  - REST APIs stay on the manifest-driven executor
+  - websocket subscriptions use a separate stream executor
+  - low-level TR ID/TR key command is available before building a full realtime API catalog
 - Current visible command model:
   - `config`
   - `catalog`
   - `auth`
+  - `ws`
   - `domestic-stock`
   - `domestic-bond`
   - `domestic-futureoption`
@@ -141,6 +150,11 @@
 - `cargo test`: passed after manifest refresh (`15` tests)
 - `cargo build`: passed after manifest refresh
 - `cargo run -- overseas-stock price-fluct --help`: confirmed refreshed `--minx <MINX>` flag
+- `cargo fmt -- --check`: passed after adding websocket command
+- `python3 tools/render_cli_reference.py data/kis_api_manifest.json docs/CLI_REFERENCE.md`: passed after adding websocket command
+- `cargo test`: passed after adding websocket command (`17` tests)
+- `cargo build`: passed after adding websocket command
+- `cargo run -- ws subscribe --help`: confirmed low-level websocket command shape
 - `bash -n ./install.sh`: passed
 - `./install.sh --help`: passed
 - `./install.sh --dry-run`: public repo currently returns a clear "no GitHub Release may be published yet" error
@@ -163,8 +177,9 @@
 
 ## Next
 
-- 더 많은 live smoke test를 추가한다. 특히 주문 전 조회, 해외주식 조회, 선물옵션 조회를 우선 검증한다.
+- 더 많은 live smoke test를 추가한다. 특히 주문 전 조회, 해외주식 조회, 선물옵션 조회, 웹소켓 구독을 우선 검증한다.
 - manifest 변경 시 `docs/CLI_REFERENCE.md`를 자동 재생성하는 흐름을 정리한다.
+- 공식 실시간 API별 웹소켓 catalog를 생성하고, `ws subscribe --api ...` 형태의 고수준 명령을 추가할지 결정한다.
 - help 출력이 길어지는 카테고리에 대해 요약/검색 명령을 추가할지 결정한다.
 - key export가 필요한지, 아니면 backup/import만으로 충분한지 결정한다.
 - tag/release 운영 규칙과 버전 정책을 정리한다.

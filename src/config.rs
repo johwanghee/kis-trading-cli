@@ -63,7 +63,6 @@ pub struct ResolvedProfile {
     pub app_key: String,
     pub app_secret: String,
     pub base_url: String,
-    #[allow(dead_code)]
     pub websocket_url: Option<String>,
     pub account_no: Option<String>,
     pub account_product_code: Option<String>,

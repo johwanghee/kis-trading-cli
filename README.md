@@ -28,8 +28,10 @@ CLI 명령 트리로 그대로 노출합니다.
 - 공식 API 카탈로그 내장
 - 카테고리별/기능별 CLI help
 - manifest 기반 REST 실행
+- 저수준 웹소켓 구독
 
-현재는 REST API 중심이며 웹소켓 스트리밍은 아직 포함하지 않습니다.
+REST API는 manifest 기반 command tree로 실행합니다. 웹소켓은 장기 실행 스트림이라 별도의
+`ws subscribe` 명령으로 실행하고, 결과는 newline-delimited JSON으로 출력합니다.
 
 ## 빠른 시작
 
@@ -196,6 +198,26 @@ kis-trading-cli config key import --input /path/to/config.key.backup
 ```bash
 kis-trading-cli auth token
 ```
+
+웹소켓 접속키 발급:
+
+```bash
+kis-trading-cli auth ws-token
+```
+
+저수준 웹소켓 구독:
+
+```bash
+kis-trading-cli ws subscribe --tr-id H0STCNT0 --tr-key 005930 --limit 5
+```
+
+시간 제한을 둘 수도 있습니다.
+
+```bash
+kis-trading-cli ws subscribe --tr-id H0STCNT0 --tr-key 005930 --duration 30s --compact
+```
+
+웹소켓 출력은 스트림 처리를 위해 이벤트당 JSON 한 줄입니다. `--tr-id`와 `--tr-key`의 의미는 공식 실시간 API별로 다르며, 체결통보류는 `--tr-key`에 HTS ID를 쓰는 식으로 공식 샘플 규칙을 따릅니다.
 
 국내주식 현재가:
 
